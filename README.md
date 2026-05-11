@@ -1,5 +1,7 @@
 # Hotel Enterprise Analytics
 
+**[🚀 Live Demo: Streamlit Dashboard](https://smart-hotel-analytics-platform-6ziv.onrender.com/)** | **[⚙️ API Documentation: FastAPI](https://smart-hotel-analytics-platform.onrender.com/docs)**
+
 A comprehensive enterprise-grade forecasting and analytics platform for hotel management.
 
 ## Quick Start
