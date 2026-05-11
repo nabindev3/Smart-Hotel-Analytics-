@@ -37,11 +37,24 @@ A comprehensive enterprise-grade forecasting and analytics platform for hotel ma
 
 ```mermaid
 graph TD
-    A[Frontend (Streamlit)] -->|HTTP GET/POST| B[Backend (FastAPI)]
-    B -->|Model Inference| C[ML Models (Prophet, LightGBM)]
-    B -->|NLP Tasks| D[HuggingFace / Anthropic API]
-    C -->|Metrics & Tracking| E[MLflow]
-    B -->|Cache / Data| F[(Data / Cache)]
+    subgraph Client_Layer
+        A["Frontend: Streamlit"]
+    end
+
+    subgraph Service_Layer
+        A -->|REST API| B["Backend: FastAPI"]
+        B --> C["Sentiment Engine: Anthropic/LLM"]
+        B --> D["Forecasting: Analytics Engine"]
+    end
+
+    subgraph Data_Storage
+        B --> E[("MLflow: Experiment Tracking")]
+        B --> F[("Local/Cloud Storage")]
+    end
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333,stroke-width:2px
+    style E fill:#dfd,stroke:#333,stroke-width:2px
 ```
 
 - **Frontend**: A sleek, user-friendly Streamlit dashboard providing interactive visualizations.
@@ -50,23 +63,15 @@ graph TD
 
 ## Project Structure
 
-```
+```text
 hotel_enterprise/
-├── backend/                # FastAPI backend service
-│   ├── main.py             # Entry point for backend
-│   └── routers/            # API Endpoints (e.g., sentiment.py)
-├── frontend/               # Streamlit frontend service
-│   └── app.py              # Main dashboard application
-├── src/                    # Core logic and ML engine
-│   ├── sentiment_engine.py # NLP orchestration & fallback logic
-│   ├── knowledge_distillation.py
-│   └── train_models_ts.py  # Model training scripts
-├── mlruns/                 # (Ignored) MLflow local tracking database
-├── notebooks/              # Jupyter notebooks for experimentation
-├── results/                # Visual evidence and MLflow dashboard plots
-├── data/                   # Datasets and caches
-├── requirements.txt        # Project dependencies
-└── README.md               # You are here
+├── backend/            # FastAPI implementation & API routes
+├── frontend/           # Streamlit UI components
+├── src/                # Core logic: Sentiment & Forecasting engines
+├── mlruns/             # MLflow local tracking (optional)
+├── .gitignore          # Keeps the repo clean (excludes venv)
+├── requirements.txt    # Project dependencies
+└── .env.example        # Template for API keys
 ```
 
 ## Features
