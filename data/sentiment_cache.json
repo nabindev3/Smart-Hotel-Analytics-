@@ -1,0 +1,32 @@
+{
+  "658c7a55bbfbec1fc53b": {
+    "label": "Positive",
+    "polarity": 0.2,
+    "confidence": 0.53,
+    "sarcasm_flag": false,
+    "aspects": {
+      "room": null,
+      "service": null,
+      "food": null,
+      "value": null,
+      "location": null
+    },
+    "themes": [],
+    "engine": "TextBlob (offline fallback)"
+  },
+  "4385bb55205a3cd6585f": {
+    "label": "Neutral",
+    "polarity": 0.0833,
+    "confidence": 0.4056,
+    "sarcasm_flag": false,
+    "aspects": {
+      "room": null,
+      "service": null,
+      "food": null,
+      "value": null,
+      "location": null
+    },
+    "themes": [],
+    "engine": "TextBlob (offline fallback)"
+  }
+}

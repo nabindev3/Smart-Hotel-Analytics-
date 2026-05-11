@@ -1,0 +1,8 @@
+{
+  "prophet_occupancy_mape": 0.15051051692170517,
+  "prophet_adr_mape": 0.07385673565597708,
+  "prophet_revenue_mape": 0.18840229401995187,
+  "cancellation_accuracy": 0.7759914255091104,
+  "cancellation_auc": 0.8635719074309605,
+  "timestamp": "2026-04-28T22:04:57.665937"
+}

@@ -1,0 +1,35 @@
+[
+  {
+    "run_id": "c3fe37f8ac3243c9b426a94e738ec1ed",
+    "timestamp": "2026-04-25T23:10:29.205464",
+    "trigger": "forced",
+    "prophet_mapes": {
+      "occupancy": 0.14282072138210758,
+      "adr": 0.06649071212830368,
+      "revenue": 0.18281665220542762
+    },
+    "cancellation_auc": 0.6251169671313536
+  },
+  {
+    "run_id": "34cd6c854c5142f2bad94007fd584216",
+    "timestamp": "2026-04-27T20:10:49.920904",
+    "trigger": "forced",
+    "prophet_mapes": {
+      "occupancy": 0.15051051692170517,
+      "adr": 0.07385673565597708,
+      "revenue": 0.18840229401995187
+    },
+    "cancellation_auc": 0.6241820301775906
+  },
+  {
+    "run_id": "2b23733d74744344b534208a893bd824",
+    "timestamp": "2026-04-28T22:04:57.664805",
+    "trigger": "forced",
+    "prophet_mapes": {
+      "occupancy": 0.15051051692170517,
+      "adr": 0.07385673565597708,
+      "revenue": 0.18840229401995187
+    },
+    "cancellation_auc": 0.8635719074309605
+  }
+]

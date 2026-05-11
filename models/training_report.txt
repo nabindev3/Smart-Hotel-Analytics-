@@ -1,0 +1,39 @@
+Smart Hotel Analytics — Training Report
+==================================================
+Run ID   : 2b23733d74744344b534208a893bd824
+Timestamp: 2026-04-28T22:04:57.664805
+MLflow   : sqlite:////Users/nabindev/Downloads/hotel_enterprise/mlruns/mlflow.db
+
+── Data Quality ─────────────────────────────
+  Grade   : B
+  Missing : 0.1%
+  Drift   : 0.0848
+
+── Prophet (with external regressors) ───────
+  occupancy   : MAPE=15.05%  [0.9s]
+  adr         : MAPE=7.39%  [0.9s]
+  revenue     : MAPE=18.84%  [0.8s]
+
+── Cancellation GBM + SMOTE ─────────────────
+  Accuracy: 0.7760
+  ROC-AUC : 0.8636
+  F1 Score: 0.6909
+
+── External Regressors Used ─────────────────
+  • temperature_c
+  • precipitation_mm
+  • local_events
+  • holiday_flag
+  • competitor_adr
+  • cpi_yoy
+  • consumer_confidence
+  • search_trend
+
+              precision    recall  f1-score   support
+
+Not Canceled       0.85      0.80      0.82     20195
+    Canceled       0.66      0.73      0.69     10594
+
+    accuracy                           0.78     30789
+   macro avg       0.75      0.76      0.76     30789
+weighted avg       0.78      0.78      0.78     30789

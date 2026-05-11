@@ -1,0 +1,107 @@
+{
+  "occupancy": {
+    "target": "occupancy",
+    "baseline": {
+      "regressors": [
+        "temperature_c",
+        "precipitation_mm",
+        "local_events",
+        "holiday_flag",
+        "competitor_adr",
+        "cpi_yoy",
+        "consumer_confidence",
+        "search_trend"
+      ],
+      "mape": 0.262,
+      "n_test": 366
+    },
+    "ablations": [
+      {
+        "removed_regressor": "cpi_yoy",
+        "ablated_mape": 0.2698,
+        "mape_delta": 0.0078,
+        "mape_delta_pct": 2.98,
+        "t_statistic": -5.21,
+        "p_value": 0.0,
+        "significant_p05": true,
+        "interpretation": "Removing cpi_yoy degrades MAPE by 3.0% (significant at p<0.05, p=0.0000)."
+      },
+      {
+        "removed_regressor": "consumer_confidence",
+        "ablated_mape": 0.2498,
+        "mape_delta": -0.0122,
+        "mape_delta_pct": -4.66,
+        "t_statistic": 3.89,
+        "p_value": 0.0,
+        "significant_p05": true,
+        "interpretation": "Removing consumer_confidence improves MAPE by 4.7% (significant at p<0.05, p=0.0000)."
+      },
+      {
+        "removed_regressor": "search_trend",
+        "ablated_mape": 0.2561,
+        "mape_delta": -0.0059,
+        "mape_delta_pct": -2.25,
+        "t_statistic": 3.52,
+        "p_value": 0.0,
+        "significant_p05": true,
+        "interpretation": "Removing search_trend improves MAPE by 2.3% (significant at p<0.05, p=0.0000)."
+      },
+      {
+        "removed_regressor": "precipitation_mm",
+        "ablated_mape": 0.2637,
+        "mape_delta": 0.0017,
+        "mape_delta_pct": 0.65,
+        "t_statistic": -1.01,
+        "p_value": 0.3153,
+        "significant_p05": false,
+        "interpretation": "Removing precipitation_mm not significant (p=0.3153)."
+      },
+      {
+        "removed_regressor": "local_events",
+        "ablated_mape": 0.2621,
+        "mape_delta": 0.0002,
+        "mape_delta_pct": 0.07,
+        "t_statistic": -0.85,
+        "p_value": 0.3944,
+        "significant_p05": false,
+        "interpretation": "Removing local_events not significant (p=0.3944)."
+      },
+      {
+        "removed_regressor": "temperature_c",
+        "ablated_mape": 0.261,
+        "mape_delta": -0.001,
+        "mape_delta_pct": -0.38,
+        "t_statistic": 1.58,
+        "p_value": 0.115,
+        "significant_p05": false,
+        "interpretation": "Removing temperature_c not significant (p=0.1150)."
+      },
+      {
+        "removed_regressor": "competitor_adr",
+        "ablated_mape": 0.2589,
+        "mape_delta": -0.0031,
+        "mape_delta_pct": -1.18,
+        "t_statistic": 1.59,
+        "p_value": 0.1113,
+        "significant_p05": false,
+        "interpretation": "Removing competitor_adr not significant (p=0.1113)."
+      },
+      {
+        "removed_regressor": "holiday_flag",
+        "ablated_mape": 0.2619,
+        "mape_delta": -0.0,
+        "mape_delta_pct": -0.01,
+        "t_statistic": 0.1,
+        "p_value": 0.9235,
+        "significant_p05": false,
+        "interpretation": "Removing holiday_flag not significant (p=0.9235)."
+      }
+    ],
+    "no_regressors": {
+      "mape": 0.2439,
+      "mape_delta": -0.0181,
+      "p_value": 0.0,
+      "significant": true
+    }
+  }
+}
