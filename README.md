@@ -58,6 +58,7 @@ graph TD
     style B fill:#bbf,stroke:#333,stroke-width:2px
     style E fill:#dfd,stroke:#333,stroke-width:2px
 ```
+<img width="1580" height="679" alt="Screenshot 2026-04-28 at 9 20 11 PM" src="https://github.com/user-attachments/assets/ec2c3d85-35aa-4582-8283-00ca50bfc7fb" />
 
 - **Frontend**: A sleek, user-friendly Streamlit dashboard providing interactive visualizations.
 - **Backend**: A modular FastAPI service managing routing, API integration, and model orchestration.
