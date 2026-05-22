@@ -97,19 +97,37 @@ LAYOUT = dict(
 # ─────────────────────────────────────────────
 #  API helpers
 # ─────────────────────────────────────────────
-def api_get(path, params=None, timeout=15):
-    try:
-        r = requests.get(f"{API_BASE}{path}", params=params, timeout=timeout)
-        r.raise_for_status(); return r.json(), None
-    except Exception as e:
-        return None, str(e)
+_COLD_START_STATUSES = {502, 503, 504}
 
-def api_post(path, body, timeout=20):
-    try:
-        r = requests.post(f"{API_BASE}{path}", json=body, timeout=timeout)
-        r.raise_for_status(); return r.json(), None
-    except Exception as e:
-        return None, str(e)
+def _request_with_retry(method, url, *, retries=4, timeout=60, **kwargs):
+    # Render free tier sleeps after ~15 min idle; first hit often returns
+    # 502/503/504 or hangs while the container restarts and models warm.
+    # Retry with exponential backoff so the user doesn't see a transient error.
+    delay = 2
+    last_err = None
+    for attempt in range(retries):
+        try:
+            r = requests.request(method, url, timeout=timeout, **kwargs)
+            if r.status_code in _COLD_START_STATUSES and attempt < retries - 1:
+                time.sleep(delay); delay *= 2
+                continue
+            r.raise_for_status()
+            return r.json(), None
+        except (requests.Timeout, requests.ConnectionError) as e:
+            last_err = e
+            if attempt < retries - 1:
+                time.sleep(delay); delay *= 2
+                continue
+            return None, f"Service is waking up, please retry in a moment ({e})"
+        except Exception as e:
+            return None, str(e)
+    return None, str(last_err) if last_err else "Service unavailable"
+
+def api_get(path, params=None, timeout=60):
+    return _request_with_retry("GET", f"{API_BASE}{path}", params=params, timeout=timeout)
+
+def api_post(path, body, timeout=60):
+    return _request_with_retry("POST", f"{API_BASE}{path}", json=body, timeout=timeout)
 
 def help_box(text):
     st.markdown(f"<div class='help-box'>💡 {text}</div>", unsafe_allow_html=True)
