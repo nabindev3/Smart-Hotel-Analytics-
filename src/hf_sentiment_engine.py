@@ -34,7 +34,9 @@ Fallback chain
 
 from __future__ import annotations
 
-import os, json, re, time, hashlib, logging
+import os, json, re, time, hashlib, logging, threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 from typing import Optional
 from pathlib import Path
 import requests
@@ -71,34 +73,39 @@ SENTIMENT_LABEL_MAP = {
     "LABEL_2": "Positive", "positive": "Positive",
 }
 
-CACHE_PATH = Path("data/hf_sentiment_cache.json")
+# Disk cache removed in favor of in-memory cache (see _MEM_CACHE below).
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Cache helpers
 # ─────────────────────────────────────────────────────────────────────────────
-def _load_cache() -> dict:
-    if CACHE_PATH.exists():
-        try:
-            with open(CACHE_PATH) as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+# ─── In-memory cache ─────────────────────────────────────────────────────────
+# Was: read+rewrite the full data/hf_sentiment_cache.json on every request.
+# That's O(N) I/O per call and burns Render's ephemeral disk.
+# Now: bounded process-local dict, thread-safe. Disk persistence removed —
+# on free-tier the container restarts often, so a persistent cache is low-value.
+_MEM_CACHE: dict[str, dict] = {}
+_MEM_CACHE_MAX = 2048
+_MEM_CACHE_LOCK = threading.Lock()
 
-def _save_cache(cache: dict):
-    """Best-effort cache save. Never raises — read-only mounts (e.g. Docker
-    `./data:/app/data:ro`) and missing dirs just disable caching for the
-    current request."""
-    try:
-        CACHE_PATH.parent.mkdir(exist_ok=True)
-        with open(CACHE_PATH, "w") as f:
-            json.dump(cache, f, indent=2)
-    except (OSError, PermissionError) as e:
-        logger.debug(f"HF cache disabled (cannot write {CACHE_PATH}): {e}")
+def _cache_get(key: str) -> Optional[dict]:
+    with _MEM_CACHE_LOCK:
+        return _MEM_CACHE.get(key)
+
+def _cache_put(key: str, value: dict) -> None:
+    # Don't cache failures; we want the next request to retry.
+    if value.get("_hf_failed"):
+        return
+    with _MEM_CACHE_LOCK:
+        if len(_MEM_CACHE) >= _MEM_CACHE_MAX:
+            # Cheap eviction: drop one arbitrary entry. Avoids importing OrderedDict.
+            _MEM_CACHE.pop(next(iter(_MEM_CACHE)))
+        _MEM_CACHE[key] = value
 
 def _cache_key(text: str, suffix: str = "") -> str:
-    return hashlib.md5(f"{text.strip().lower()}{suffix}".encode()).hexdigest()[:20]
+    # Include engine identifier so a degraded result doesn't poison a later
+    # warm-engine lookup.
+    return hashlib.md5(f"{text.strip().lower()}|{suffix}".encode()).hexdigest()[:20]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -110,9 +117,12 @@ class HFInferenceClient:
     Handles: auth, retries, cold-start waits (model loading), rate limits.
     """
 
-    TIMEOUT        = 25
-    RETRY_ATTEMPTS = 3
-    COLD_START_WAIT= 20   # HF cold-starts large models; wait and retry
+    # Tight budgets so a slow HF doesn't burn Render's proxy timeout.
+    # Previous values (TIMEOUT=25, RETRIES=3, WAIT=20) could spend up to
+    # ~400s × 3 models per request and surface as 502 Bad Gateway.
+    TIMEOUT         = 8
+    RETRY_ATTEMPTS  = 1
+    COLD_START_WAIT = 3
 
     def __init__(self, token: Optional[str] = None):
         self.token   = token or os.environ.get("HF_API_TOKEN", "")
@@ -262,50 +272,66 @@ class HuggingFaceSentimentEngine:
         self._engine = f"HuggingFace ({MODELS['sentiment'].split('/')[-1]})"
 
     def analyse(self, text: str, use_cache: bool = True) -> dict:
-        key   = _cache_key(text, "hf_v2")
-        cache = _load_cache() if use_cache else {}
-        if key in cache:
-            return cache[key]
+        key = _cache_key(text, "hf_v3")
+        if use_cache:
+            hit = _cache_get(key)
+            if hit is not None:
+                return hit
 
-        text  = str(text).strip()
+        text   = str(text).strip()
         result = self._run_pipeline(text)
 
         if use_cache:
-            cache[key] = result
-            _save_cache(cache)
+            _cache_put(key, result)
         return result
 
     def _run_pipeline(self, text: str) -> dict:
-        # ── 1. Sentiment ──────────────────────────────────────────────────
-        raw_sent = self.client.query(
-            MODELS["sentiment"],
-            {"inputs": text, "options": {"wait_for_model": True}},
-        )
+        # Fan out the 3 HF model calls concurrently — they're independent.
+        # Was: 3 sequential calls × up to 25s each = 75s+ per review, easily
+        # triggering Render's 502 proxy timeout. Now: bounded by the slowest
+        # call (~TIMEOUT seconds) instead of their sum.
+        #
+        # wait_for_model is OFF so HF returns 503 fast on a cold model
+        # rather than blocking up to 20s; we retry once briefly via the
+        # client's RETRY_ATTEMPTS, and if the model is still cold we fail
+        # over to the next tier (Claude / TextBlob) in sentiment_engine.py.
+        payloads = {
+            "sentiment": (MODELS["sentiment"],
+                          {"inputs": text,
+                           "options": {"wait_for_model": False}}),
+            "irony":     (MODELS["irony"],
+                          {"inputs": text,
+                           "options": {"wait_for_model": False}}),
+            "zero_shot": (MODELS["zero_shot"],
+                          {"inputs": text,
+                           "parameters": {"candidate_labels": ASPECT_LABELS,
+                                          "multi_label": True},
+                           "options": {"wait_for_model": False}}),
+        }
+
+        raw: dict[str, object] = {}
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futures = {ex.submit(self.client.query, model_id, payload): name
+                       for name, (model_id, payload) in payloads.items()}
+            for fut in as_completed(futures):
+                name = futures[fut]
+                try:
+                    raw[name] = fut.result()
+                except Exception as e:
+                    logger.warning(f"HF {name} call raised: {e}")
+                    raw[name] = None
+
+        raw_sent  = raw.get("sentiment")
+        raw_irony = raw.get("irony")
+        raw_zs    = raw.get("zero_shot")
+
+        # Sentiment is the only mandatory call. If it failed, signal so the
+        # caller can fall through to Claude / TextBlob without poisoning cache.
         if raw_sent is None:
-            # Model unreachable — return structured failure so caller can fallback
             return {"_hf_failed": True}
 
         label, polarity, confidence = _parse_sentiment(raw_sent)
-
-        # ── 2. Irony / sarcasm ────────────────────────────────────────────
-        raw_irony    = self.client.query(
-            MODELS["irony"],
-            {"inputs": text, "options": {"wait_for_model": True}},
-        )
         sarcasm_flag = _parse_irony(raw_irony) if raw_irony else False
-
-        # ── 3. Zero-shot aspect scoring ───────────────────────────────────
-        raw_zs = self.client.query(
-            MODELS["zero_shot"],
-            {
-                "inputs":     text,
-                "parameters": {
-                    "candidate_labels": ASPECT_LABELS,
-                    "multi_label": True,
-                },
-                "options": {"wait_for_model": True},
-            },
-        )
         aspects = {"room": None, "service": None, "food": None,
                     "value": None, "location": None}
 
@@ -337,14 +363,24 @@ class HuggingFaceSentimentEngine:
         }
 
     def analyse_batch(self, texts: list[str],
-                       delay: float = 0.5) -> list[dict]:
-        results = []
-        for i, text in enumerate(texts):
-            r = self.analyse(text)
-            results.append(r)
-            if i < len(texts) - 1:
-                time.sleep(delay)
-        return results
+                       max_workers: int = 4) -> list[dict]:
+        # Was: sequential with a 0.5s sleep between calls — 30 reviews =
+        # 15s of pure sleep before any model work, which exceeded Render's
+        # proxy timeout. Now: bounded concurrency with no artificial sleep.
+        # HF's API will 429 if we overshoot; HFInferenceClient retries on 429.
+        if not texts:
+            return []
+        results: list[Optional[dict]] = [None] * len(texts)
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futs = {ex.submit(self.analyse, t): i for i, t in enumerate(texts)}
+            for fut in as_completed(futs):
+                i = futs[fut]
+                try:
+                    results[i] = fut.result()
+                except Exception as e:
+                    logger.warning(f"HF batch item {i} failed: {e}")
+                    results[i] = {"_hf_failed": True}
+        return results  # type: ignore[return-value]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

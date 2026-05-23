@@ -21,9 +21,11 @@ def _load_prophet(name: str):
         raise FileNotFoundError(f"Model not found: {path}")
     return joblib.load(path)
 
+@lru_cache(maxsize=1)
 def _load_daily():
     return pd.read_csv(os.path.join(ROOT,"data","daily_kpis.csv"), parse_dates=["ds"])
 
+@lru_cache(maxsize=1)
 def _load_ext():
     return pd.read_csv(os.path.join(ROOT,"data","external_regs.csv"), parse_dates=["ds"])
 

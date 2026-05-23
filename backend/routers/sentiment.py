@@ -1,15 +1,23 @@
 """backend/routers/sentiment.py — NLP endpoints with engine info"""
 import os, sys
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutTimeout
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
-from src.sentiment_engine import analyse, analyse_batch, get_active_engine
+from src.sentiment_engine import (analyse, analyse_batch, get_active_engine,
+                                    _textblob_analyse)
 from src.hf_sentiment_engine import MODELS as HF_MODELS
 
 router = APIRouter()
+
+# Endpoint-level latency cap. Even with the new in-engine budgets, we never
+# want this endpoint to spend more than this before returning *something* —
+# Render's proxy starts emitting 502 around 30s of upstream silence.
+_REQUEST_DEADLINE_S = 12
+_EXEC = ThreadPoolExecutor(max_workers=8)
 
 class ReviewText(BaseModel):
     text: str
@@ -60,36 +68,45 @@ def engine_info():
         },
     }
 
+def _textblob_fallback(text: str, reason: str) -> dict:
+    r = _textblob_analyse(text)
+    r["engine"] = f"TextBlob (fallback: {reason})"
+    return r
+
 @router.post("/analyse")
 def analyse_single(body: ReviewText):
     """
-    Resilient single-review analysis. If the active engine throws (timeout,
-    cold start, parse error, read-only cache, etc.), we walk down the tier
-    fallback rather than returning a 500.
+    Single-review analysis with a hard deadline. If the active engine
+    (HF / Claude) doesn't return within the request budget, we return a
+    TextBlob result instead of letting the request hang until Render's
+    proxy returns 502 Bad Gateway.
     """
     import logging, traceback
     log = logging.getLogger("sentiment")
+    fut = _EXEC.submit(analyse, body.text)
     try:
-        return analyse(body.text)
+        return fut.result(timeout=_REQUEST_DEADLINE_S)
+    except FutTimeout:
+        # The underlying call keeps running and will populate the in-memory
+        # cache; the user just doesn't wait for it on this request.
+        log.warning(f"sentiment analyse exceeded {_REQUEST_DEADLINE_S}s; falling back to TextBlob")
+        return _textblob_fallback(body.text, f"deadline {_REQUEST_DEADLINE_S}s exceeded")
     except Exception as e:
         log.warning(f"sentiment analyse failed: {e}\n{traceback.format_exc()}")
-        # Last-ditch TextBlob fallback so the dashboard never sees a 500.
-        try:
-            from src.sentiment_engine import _textblob_analyse
-            r = _textblob_analyse(body.text)
-            r["engine"] = f"TextBlob (fallback after error: {type(e).__name__})"
-            return r
-        except Exception:
-            return {
-                "label": "Neutral", "polarity": 0.0, "confidence": 0.0,
-                "sarcasm_flag": False, "aspects": {}, "themes": [],
-                "engine": f"error: {type(e).__name__}: {e}",
-            }
+        return _textblob_fallback(body.text, f"{type(e).__name__}")
 
 @router.post("/analyse-batch")
 def analyse_batch_endpoint(body: BatchReviews):
+    # Same deadline pattern. Scale budget mildly with batch size but cap it
+    # so the request can never block the proxy.
+    deadline = min(_REQUEST_DEADLINE_S + 2 * len(body.reviews), 45)
+    fut = _EXEC.submit(analyse_batch, body.reviews)
     try:
-        results = analyse_batch(body.reviews)
+        results = fut.result(timeout=deadline)
+    except FutTimeout:
+        # Per-item TextBlob so the client never sees a 502 on /analyse-batch.
+        results = [_textblob_fallback(t, f"batch deadline {deadline}s exceeded")
+                   for t in body.reviews]
     except Exception as e:
         return {"count": 0, "results": [], "error": f"{type(e).__name__}: {e}"}
     return {"count": len(results), "results": results}
