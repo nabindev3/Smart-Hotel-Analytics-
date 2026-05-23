@@ -1,12 +1,20 @@
-# Hotel Enterprise Analytics
+# Hotel Revenue ML Platform
 
 **[🚀 Live Demo: Streamlit Dashboard](https://smart-hotel-analytics-platform-6ziv.onrender.com/)** | **[⚙️ API Documentation: FastAPI](https://smart-hotel-analytics-platform.onrender.com/docs)**
 
-A comprehensive enterprise-grade forecasting and analytics platform for hotel management.
+A comprehensive forecasting and analytics ML platform for hotel revenue management.
+
+## Key Findings & Results
+
+- **Cancellation Prediction**: Achieved an **honest Holdout AUC of 0.814** (Calibrated Brier Score: 0.163) using XGBoost evaluated via a strict `TimeSeriesSplit(n_splits=5)`.
+- **Target Leakage Remediation**: The base Antonio-Almeida-Nunes dataset contains deterministic leakage (`booking_changes`, `days_in_waiting_list`, and `reservation_status`). These features were explicitly dropped to ensure realistic bounds on production performance.
+- **Occupancy Forecasting**: Evaluated head-to-head, **Prophet** achieved an occupancy MAPE of ~15%, while a modern deep-learning **N-BEATS** baseline achieved ~15.9%.
+
+*For detailed evaluation metrics, confusion matrices, and calibration diagrams, see [RESULTS.md](RESULTS.md) and the [Model Card](MODEL_CARD.md).*
 
 ## Quick Start
 
-1. **Clone the repository** and navigate to the project directory:
+1. **Clone the repository**:
    ```bash
    git clone <repository-url>
    cd hotel_enterprise
@@ -15,69 +23,27 @@ A comprehensive enterprise-grade forecasting and analytics platform for hotel ma
 2. **Set up the virtual environment** and install dependencies:
    ```bash
    python -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   source venv/bin/activate
    pip install -r requirements.txt
    ```
 
-3. **Configure Environment Variables**:
-   ```bash
-   cp .env.example .env
-   # Open .env and add your HuggingFace/Anthropic API keys if needed
-   ```
-
-4. **Run the Backend (FastAPI)**:
+3. **Run the Backend (FastAPI)**:
    ```bash
    uvicorn backend.main:app --reload --port 8000
    ```
 
-5. **Run the Frontend (Streamlit)**:
+4. **Run the Frontend (Streamlit)**:
    ```bash
    streamlit run frontend/app.py
    ```
 
-## Architecture Diagram
+## Architecture
 
-```mermaid
-graph TD
-    subgraph Client_Layer
-        A["Frontend: Streamlit"]
-    end
+- **Frontend**: Streamlit dashboard providing interactive visualizations.
+- **Backend**: FastAPI microservice managing routing, forecasting, cancellation risk, dynamic pricing, and LP overbooking.
+- **MLflow Tracking**: Tracks experiments, model parameters, and training metrics automatically.
 
-    subgraph Service_Layer
-        A -->|REST API| B["Backend: FastAPI"]
-        B --> C["Sentiment Engine: Anthropic/LLM"]
-        B --> D["Forecasting: Analytics Engine"]
-    end
-
-    subgraph Data_Storage
-        B --> E[("MLflow: Experiment Tracking")]
-        B --> F[("Local/Cloud Storage")]
-    end
-
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#bbf,stroke:#333,stroke-width:2px
-    style E fill:#dfd,stroke:#333,stroke-width:2px
-```
-
-- **Frontend**: A sleek, user-friendly Streamlit dashboard providing interactive visualizations.
-- **Backend**: A modular FastAPI service managing routing, API integration, and model orchestration.
-- **MLflow**: Tracks experiments, model parameters, and training metrics automatically.
-
-## Project Structure
-
-```text
-hotel_enterprise/
-├── backend/            # FastAPI implementation & API routes
-├── frontend/           # Streamlit UI components
-├── src/                # Core logic: Sentiment & Forecasting engines
-├── mlruns/             # MLflow local tracking (optional)
-├── .gitignore          # Keeps the repo clean (excludes venv)
-├── requirements.txt    # Project dependencies
-└── .env.example        # Template for API keys
-```
-
-## Features
-
-- **Robust NLP Engine**: 3-tier fallback architecture (HuggingFace -> Anthropic Claude -> TextBlob) with comprehensive error handling.
-- **Experiment Tracking**: Full MLflow integration recording parameters, metrics, and models.
-- **Clean API Design**: Modularized FastAPI endpoints returning consistent responses.
+## Validation & CI
+The continuous integration suite actively enforces metric floors on the temporal holdout set:
+- `holdout_auc > 0.80`
+- `holdout_mape < 0.16`

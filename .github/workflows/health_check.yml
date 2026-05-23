@@ -1,0 +1,28 @@
+name: Daily Health Check
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Runs daily at 08:00 UTC
+  workflow_dispatch:      # Allows manual triggering
+
+jobs:
+  health_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Healthz Endpoint
+        env:
+          API_URL: ${{ secrets.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then
+            echo "API_URL secret is not set! Skipping..."
+            exit 0
+          fi
+          
+          echo "Pinging $API_URL/healthz..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/healthz")
+          
+          if [ "$RESPONSE" -ne 200 ]; then
+            echo "Health check failed with status code: $RESPONSE"
+            exit 1
+          fi
+          echo "Health check passed!"

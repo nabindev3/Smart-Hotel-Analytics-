@@ -23,8 +23,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from backend.routers import (
-    forecast, cancellation, pricing, overbooking, recommender, sentiment, xai,
-    briefing, analytics,
+    forecast, cancellation, pricing, overbooking, xai,
+    analytics,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -34,13 +34,11 @@ def _warm_models():
     try:
         from backend.routers.cancellation import _load_cancel_model
         from backend.routers.forecast     import _load_prophet
-        from backend.routers.recommender  import _load_recommender
         from backend.routers.xai          import _load_explainer
 
         _load_cancel_model()
         for name in ["occupancy","adr","revenue"]:
             _load_prophet(name)
-        _load_recommender()
         _load_explainer()
         print("✅  All models loaded.")
     except Exception as e:
@@ -66,7 +64,7 @@ app = FastAPI(
     description = (
         "Production ML microservice for hotel revenue management.\n\n"
         "Endpoints: forecasting · cancellation risk · dynamic pricing · "
-        "LP overbooking · guest recommender · XAI (SHAP) · sentiment NLP."
+        "LP overbooking · XAI (SHAP)."
     ),
     version  = "2.0.0",
     docs_url = "/docs",
@@ -87,10 +85,7 @@ app.include_router(forecast.router,     prefix="/api/v1/forecast",    tags=["For
 app.include_router(cancellation.router, prefix="/api/v1/cancellation",tags=["Cancellation"])
 app.include_router(pricing.router,      prefix="/api/v1/pricing",     tags=["Pricing"])
 app.include_router(overbooking.router,  prefix="/api/v1/overbooking", tags=["Overbooking"])
-app.include_router(recommender.router,  prefix="/api/v1/recommend",   tags=["Recommender"])
-app.include_router(sentiment.router,    prefix="/api/v1/sentiment",   tags=["Sentiment"])
 app.include_router(xai.router,          prefix="/api/v1/xai",         tags=["XAI"])
-app.include_router(briefing.router,     prefix="/api/v1/briefing",    tags=["Briefing"])
 app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Analytics"])
 
 # ── Health & root ────────────────────────────────────────────────────────────
@@ -98,15 +93,14 @@ app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Ana
 def root():
     return {"service": "Smart Hotel Analytics API", "version": "2.0.0", "status": "ok"}
 
-@app.get("/health", tags=["Health"])
-def health():
+@app.get("/healthz", tags=["Health"])
+def healthz():
     return {
         "status":    "healthy",
         "timestamp": time.time(),
         "models": {
             "prophet":      os.path.exists(os.path.join(ROOT,"models","prophet_occupancy.joblib")),
             "cancellation": os.path.exists(os.path.join(ROOT,"models","cancellation_model.joblib")),
-            "recommender":  os.path.exists(os.path.join(ROOT,"models","recommender.joblib")),
         },
     }
 
