@@ -81,7 +81,7 @@ _claude_client = None
 
 def _get_hf():
     global _hf_engine
-    if not _HF_MODULE_OK or not os.environ.get("HF_API_TOKEN"): return None
+    if not _HF_MODULE_OK: return None
     if _hf_engine is None: _hf_engine = HuggingFaceSentimentEngine()
     return _hf_engine
 

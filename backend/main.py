@@ -10,7 +10,7 @@ Run (production):
   uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
 """
 
-import os, sys, time
+import os, sys, time, threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -30,11 +30,8 @@ from backend.routers import (
 # ─────────────────────────────────────────────────────────────────────────────
 #  Lifespan — warm up models on startup
 # ─────────────────────────────────────────────────────────────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("🏨  Warming up ML models…")
+def _warm_models():
     try:
-        # Pre-load all models into module-level caches
         from backend.routers.cancellation import _load_cancel_model
         from backend.routers.forecast     import _load_prophet
         from backend.routers.recommender  import _load_recommender
@@ -48,6 +45,15 @@ async def lifespan(app: FastAPI):
         print("✅  All models loaded.")
     except Exception as e:
         print(f"⚠️  Model warm-up warning: {e}")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Warm models in a background thread so the port binds immediately.
+    # On Render's free tier, blocking startup on heavy model loads
+    # (Prophet + SHAP) can exceed the proxy timeout and surface as 502.
+    # Router-level @lru_cache loaders make lazy first-call loading safe.
+    print("🏨  Starting; warming models in background…")
+    threading.Thread(target=_warm_models, daemon=True).start()
     yield
     print("🏨  Shutting down.")
 
@@ -92,8 +98,8 @@ app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Ana
 def root():
     return {"service": "Smart Hotel Analytics API", "version": "2.0.0", "status": "ok"}
 
-@app.get("/health", tags=["Health"])
-def health():
+@app.get("/healthz", tags=["Health"])
+def healthz():
     return {
         "status":    "healthy",
         "timestamp": time.time(),

@@ -100,8 +100,8 @@ class TestModels:
             "market_segment":"Online TA","distribution_channel":"TA/TO",
             "is_repeated_guest":0,"previous_cancellations":0,
             "previous_bookings_not_canceled":0,"reserved_room_type":"A",
-            "booking_changes":0,"deposit_type":"No Deposit",
-            "days_in_waiting_list":0.0,"customer_type":"Transient",
+            "deposit_type":"No Deposit",
+            "customer_type":"Transient",
             "required_car_parking_spaces":0,"total_of_special_requests":1,"adr":120.0,
         }])
         proba = cancel_model.predict_proba(row)[0]
@@ -123,14 +123,24 @@ class TestModels:
             "hotel","lead_time","arrival_date_month","total_stay","total_guests",
             "meal","country","market_segment","distribution_channel",
             "is_repeated_guest","previous_cancellations","previous_bookings_not_canceled",
-            "reserved_room_type","booking_changes","deposit_type",
-            "days_in_waiting_list","customer_type",
+            "reserved_room_type","deposit_type",
+            "customer_type",
             "required_car_parking_spaces","total_of_special_requests","adr",
         ]
         X = bookings[FEATURES].copy()
         proba = cancel_model.predict_proba(X)[:,1]
         assert proba.min() >= 0.0
         assert proba.max() <= 1.0
+
+    def test_metric_floors(self):
+        path = os.path.join(ROOT, "metrics.json")
+        if not os.path.exists(path):
+            pytest.skip("metrics.json not found")
+        with open(path) as f:
+            metrics = json.load(f)
+        
+        assert metrics["holdout_auc"] > 0.80, f"AUC {metrics['holdout_auc']} <= 0.80"
+        assert metrics["holdout_mape"] < 0.16, f"MAPE {metrics['holdout_mape']} >= 0.16"
 
     def test_prophet_models_load(self):
         import joblib
@@ -211,7 +221,6 @@ class TestBusinessLogic:
         for r in result.top_recommendations:
             assert 0 <= r["score"] <= 1
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # API INTEGRATION TEST (requires running backend)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -245,6 +254,9 @@ class TestAPI:
         if r is None: pytest.skip("Backend not running")
         assert r.status_code == 200
 
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])
 
 # ─────────────────────────────────────────────────────────────────────────────
 # IN-PROCESS TESTS for new analytics + briefing routers (no live backend)
@@ -304,7 +316,3 @@ class TestNewEndpoints:
         assert r.status_code == 200
         d = r.json()
         assert len(d["series"]) > 0
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--tb=short"])

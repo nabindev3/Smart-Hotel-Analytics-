@@ -20,15 +20,16 @@ class BatchReviews(BaseModel):
 @router.get("/engine-info")
 def engine_info():
     """Returns which NLP engine is active and which models are configured."""
-    hf_token  = bool(os.environ.get("HF_API_TOKEN"))
+    # HuggingFace works with or without a token (free tier)
+    hf_available = True
     claude_key= bool(os.environ.get("ANTHROPIC_API_KEY"))
-    tier = (1 if hf_token else 2 if claude_key else 3)
+    tier = 1
     return {
         "active_engine":   get_active_engine(),
         "active_tier":     tier,
         "tier_1": {
             "name":      "HuggingFace Inference API",
-            "available": hf_token,
+            "available": hf_available,
             "models": {
                 "sentiment": HF_MODELS["sentiment"],
                 "irony":     HF_MODELS["irony"],
