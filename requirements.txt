@@ -247,3 +247,4 @@ zstandard
 xgboost
 neuralforecast
 statsforecast
+seaborn
