@@ -248,3 +248,4 @@ xgboost
 neuralforecast
 statsforecast
 seaborn
+lightgbm
