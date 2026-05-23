@@ -37,7 +37,29 @@ A comprehensive forecasting and analytics ML platform for hotel revenue manageme
    streamlit run frontend/app.py
    ```
 
-## Architecture
+## Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph Client_Layer
+        A["Frontend: Streamlit"]
+    end
+
+    subgraph Service_Layer
+        A -->|REST API| B["Backend: FastAPI"]
+        B --> C["Sentiment Engine: Anthropic/LLM"]
+        B --> D["Forecasting: Analytics Engine"]
+    end
+
+    subgraph Data_Storage
+        B --> E[("MLflow: Experiment Tracking")]
+        B --> F[("Local/Cloud Storage")]
+    end
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333,stroke-width:2px
+    style E fill:#dfd,stroke:#333,stroke-width:2px
+```
 
 - **Frontend**: Streamlit dashboard providing interactive visualizations.
 - **Backend**: FastAPI microservice managing routing, forecasting, cancellation risk, dynamic pricing, and LP overbooking.
