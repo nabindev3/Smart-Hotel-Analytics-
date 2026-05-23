@@ -153,7 +153,20 @@ class TestModels:
             assert "forecast" in bundle
             assert "mape"     in bundle
 
-
+    def test_recommender_loads(self):
+        """
+        Use the resilient backend loader rather than raw joblib.load — it
+        re-trains on the fly if the cached pickle was saved under a stale
+        module path (a known failure mode when src/recommender.py is run
+        as __main__).
+        """
+        path = os.path.join(ROOT, "models", "recommender.joblib")
+        if not os.path.exists(path):
+            pytest.skip()
+        from backend.routers.recommender import _load_recommender
+        _load_recommender.cache_clear()
+        rec = _load_recommender()
+        assert rec.is_fitted
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -191,6 +204,23 @@ class TestBusinessLogic:
         assert isinstance(rec.strategy, str)
         assert len(rec.room_tier_prices) == 6
 
+    def test_recommender_predict(self):
+        path = os.path.join(ROOT,"models","recommender.joblib")
+        if not os.path.exists(path): pytest.skip()
+        import joblib
+        from src.recommender import GuestRecommender
+        rec = GuestRecommender.load(path)
+        result = rec.predict_guest({
+            "hotel":"Resort Hotel","adr":200,"children":2,"adults":2,
+            "babies":0,"total_stay":5,"country":"GBR","meal":"BB",
+            "is_repeated_guest":0,"previous_bookings_not_canceled":0,
+            "total_of_special_requests":2,
+        })
+        assert len(result.top_recommendations) > 0
+        assert result.loyalty_tier in ["Gold","Silver","Bronze"]
+        for r in result.top_recommendations:
+            assert 0 <= r["score"] <= 1
+
 # ─────────────────────────────────────────────────────────────────────────────
 # API INTEGRATION TEST (requires running backend)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -227,3 +257,62 @@ class TestAPI:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IN-PROCESS TESTS for new analytics + briefing routers (no live backend)
+# ─────────────────────────────────────────────────────────────────────────────
+class TestNewEndpoints:
+    """Boots FastAPI in-process and exercises the new manager-friendly endpoints."""
+
+    @pytest.fixture(scope="class")
+    def client(self):
+        try:
+            from fastapi.testclient import TestClient
+            from backend.main import app
+        except Exception as e:
+            pytest.skip(f"Could not boot FastAPI app: {e}")
+        return TestClient(app)
+
+    def test_briefing_today(self, client):
+        r = client.get("/api/v1/briefing/today", params={"horizon_days": 7})
+        assert r.status_code == 200
+        d = r.json()
+        for k in ("headline", "trend", "alerts", "suggested_actions", "data_quality"):
+            assert k in d
+        assert isinstance(d["alerts"], list) and len(d["alerts"]) >= 1
+        assert len(d["suggested_actions"]) == 3
+        # Headline must include core KPIs
+        for k in ("occupancy", "adr", "revpar", "cancel_rate", "revenue", "bookings"):
+            assert k in d["headline"]
+
+    def test_channel_mix(self, client):
+        r = client.get("/api/v1/analytics/channel-mix", params={"lookback_days": 180})
+        assert r.status_code == 200
+        d = r.json()
+        assert "channels" in d and "summary" in d
+        # Net revenue should never exceed gross
+        s = d["summary"]
+        assert s["total_net_revenue"] <= s["total_gross_revenue"] + 1e-6
+
+    def test_no_show_heatmap(self, client):
+        r = client.get("/api/v1/analytics/no-show-heatmap", params={"lookback_days": 365})
+        assert r.status_code == 200
+        d = r.json()
+        assert len(d["days"]) == 7
+        assert len(d["months"]) == 12
+        assert len(d["rate_matrix"]) == 7
+        assert all(0 <= v <= 1 for row in d["rate_matrix"] for v in row)
+
+    def test_guest_mix(self, client):
+        r = client.get("/api/v1/analytics/guest-mix",
+                       params={"lookback_days": 365, "top_n": 10})
+        assert r.status_code == 200
+        d = r.json()
+        assert "top_countries" in d and "segments" in d
+
+    def test_revenue_trend(self, client):
+        r = client.get("/api/v1/analytics/revenue-trend",
+                       params={"lookback_days": 90, "rolling": 7})
+        assert r.status_code == 200
+        d = r.json()
+        assert len(d["series"]) > 0
