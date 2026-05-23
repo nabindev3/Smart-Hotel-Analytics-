@@ -19,6 +19,14 @@ def _load_forecast():
     b = joblib.load(os.path.join(ROOT,"models","prophet_occupancy.joblib"))
     return b["forecast"]
 
+@lru_cache(maxsize=1)
+def _load_daily():
+    return pd.read_csv(os.path.join(ROOT,"data","daily_kpis.csv"), parse_dates=["ds"])
+
+@lru_cache(maxsize=1)
+def _load_ext():
+    return pd.read_csv(os.path.join(ROOT,"data","external_regs.csv"), parse_dates=["ds"])
+
 @router.get("/recommendation")
 def get_pricing(
     current_adr:  float = Query(120.0, description="Current ADR in EUR"),
@@ -26,8 +34,8 @@ def get_pricing(
 ):
     """Dynamic pricing recommendation based on Prophet demand forecast."""
     forecast_df = _load_forecast()
-    daily       = pd.read_csv(os.path.join(ROOT,"data","daily_kpis.csv"), parse_dates=["ds"])
-    ext         = pd.read_csv(os.path.join(ROOT,"data","external_regs.csv"), parse_dates=["ds"])
+    daily       = _load_daily()
+    ext         = _load_ext()
 
     rec = _engine.recommend(forecast_df, daily, ext,
                              horizon_days=horizon_days, current_adr=current_adr)

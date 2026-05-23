@@ -5,7 +5,7 @@ Tier 2: Anthropic Claude API
 Tier 3: TextBlob
 """
 from __future__ import annotations
-import os, json, re, time, hashlib, logging
+import os, json, re, time, hashlib, logging, threading
 from typing import Optional
 from pathlib import Path
 import pandas as pd
@@ -29,25 +29,27 @@ try:
 except ImportError:
     _ANTHROPIC_OK = False
 
-CACHE_PATH = Path("data/sentiment_cache.json")
+# ─── In-memory cache ─────────────────────────────────────────────────────────
+# Was: load+rewrite data/sentiment_cache.json on every request (O(N) per call,
+# burns Render's ephemeral disk). Now: bounded in-process dict, thread-safe.
+# We also drop the previous "result cached under one key regardless of which
+# engine actually produced it" — a TextBlob fallback no longer poisons later
+# warm-engine lookups, because failures are never cached.
+_MEM_CACHE: dict[str, dict] = {}
+_MEM_CACHE_MAX = 2048
+_MEM_CACHE_LOCK = threading.Lock()
 
-def _load_cache():
-    if CACHE_PATH.exists():
-        try:
-            with open(CACHE_PATH) as f: return json.load(f)
-        except: pass
-    return {}
+def _cache_get(key: str) -> Optional[dict]:
+    with _MEM_CACHE_LOCK:
+        return _MEM_CACHE.get(key)
 
-def _save_cache(cache):
-    """Best-effort cache save. Never raises — read-only mounts (e.g. Docker
-    `./data:/app/data:ro`) and missing dirs just disable caching for the
-    current request."""
-    try:
-        CACHE_PATH.parent.mkdir(exist_ok=True)
-        with open(CACHE_PATH, "w") as f:
-            json.dump(cache, f, indent=2)
-    except (OSError, PermissionError) as e:
-        logger.debug(f"sentiment cache disabled (cannot write {CACHE_PATH}): {e}")
+def _cache_put(key: str, value: dict) -> None:
+    if not value or value.get("engine", "").startswith("error:"):
+        return
+    with _MEM_CACHE_LOCK:
+        if len(_MEM_CACHE) >= _MEM_CACHE_MAX:
+            _MEM_CACHE.pop(next(iter(_MEM_CACHE)))
+        _MEM_CACHE[key] = value
 
 def _key(text): return hashlib.md5(text.strip().lower().encode()).hexdigest()[:20]
 
@@ -95,14 +97,17 @@ def _get_claude():
 
 def analyse(text: str, use_cache: bool = True) -> dict:
     key = _key(text)
-    cache = _load_cache() if use_cache else {}
-    if key in cache: return cache[key]
+    if use_cache:
+        hit = _cache_get(key)
+        if hit is not None:
+            return hit
+
     result = None
-    # Tier 1: HuggingFace
+    # Tier 1: HuggingFace (its own cache is in-memory now too)
     hf = _get_hf()
     if hf:
         try:
-            r = hf.analyse(text, use_cache=False)
+            r = hf.analyse(text, use_cache=True)
             if not r.get("_hf_failed"): result = r
         except Exception as e: logger.warning(f"HF failed: {e}")
     # Tier 2: Claude
@@ -111,20 +116,30 @@ def analyse(text: str, use_cache: bool = True) -> dict:
         if claude:
             try: result = _claude_analyse(text, claude)
             except Exception as e: logger.warning(f"Claude failed: {e}")
-    # Tier 3: TextBlob
+    # Tier 3: TextBlob (always succeeds)
     if result is None: result = _textblob_analyse(text)
+
     if use_cache:
-        cache[key] = result
-        _save_cache(cache)
+        _cache_put(key, result)
     return result
 
-def analyse_batch(texts, delay=0.3):
-    results = []
-    for i, text in enumerate(texts):
-        r = analyse(text)
-        results.append(r)
-        if ("HuggingFace" in r.get("engine","") or "Claude" in r.get("engine","")) and i < len(texts)-1:
-            time.sleep(delay)
+def analyse_batch(texts, max_workers: int = 4):
+    # Was: sequential with a 0.3s sleep between every call — 30 reviews
+    # spent ~9s asleep before any work, which alone exceeded Render's
+    # proxy timeout. Now: bounded concurrency, no artificial sleep.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    if not texts:
+        return []
+    results: list[Optional[dict]] = [None] * len(texts)
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futs = {ex.submit(analyse, t): i for i, t in enumerate(texts)}
+        for fut in as_completed(futs):
+            i = futs[fut]
+            try:
+                results[i] = fut.result()
+            except Exception as e:
+                logger.warning(f"sentiment batch item {i} failed: {e}")
+                results[i] = _textblob_analyse(texts[i])
     return results
 
 def enrich_dataframe(df: pd.DataFrame, text_col: str = "text") -> pd.DataFrame:

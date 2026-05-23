@@ -15,6 +15,11 @@ router = APIRouter()
 def _load_explainer():
     return CancellationExplainer(os.path.join(ROOT,"models","cancellation_model.joblib"))
 
+@lru_cache(maxsize=1)
+def _load_bookings() -> pd.DataFrame:
+    # Cached so /global-importance doesn't re-parse 180k rows per request.
+    return pd.read_csv(os.path.join(ROOT,"data","bookings.csv"))
+
 class BookingForXAI(BaseModel):
     hotel:                          str   = "Resort Hotel"
     lead_time:                      int   = 120
@@ -52,7 +57,7 @@ def explain_booking(booking: BookingForXAI):
 def global_importance(n_samples: int = 300):
     """Top-20 global feature importances from SHAP."""
     exp = _load_explainer()
-    bk  = pd.read_csv(os.path.join(ROOT,"data","bookings.csv"))
+    bk  = _load_bookings()
     try:
         result = exp.explain_global(bk[FEATURES], n_samples=n_samples)
         return {
