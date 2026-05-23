@@ -98,8 +98,8 @@ app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Ana
 def root():
     return {"service": "Smart Hotel Analytics API", "version": "2.0.0", "status": "ok"}
 
-@app.get("/healthz", tags=["Health"])
-def healthz():
+@app.get("/health", tags=["Health"])
+def health():
     return {
         "status":    "healthy",
         "timestamp": time.time(),

@@ -18,8 +18,8 @@ jobs:
             exit 0
           fi
           
-          echo "Pinging $API_URL/healthz..."
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/healthz")
+          echo "Pinging $API_URL/health..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health")
           
           if [ "$RESPONSE" -ne 200 ]; then
             echo "Health check failed with status code: $RESPONSE"
