@@ -17,8 +17,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 
-API_BASE       = os.environ.get("API_BASE", "http://localhost:8000")
-PUBLIC_API_URL = os.environ.get("PUBLIC_API_URL", "http://localhost:8000")
+API_BASE       = os.environ.get("API_BASE", "http://localhost:8000").rstrip("/")
+PUBLIC_API_URL = os.environ.get("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
 
 st.set_page_config(
     page_title="Smart Hotel Analytics",
