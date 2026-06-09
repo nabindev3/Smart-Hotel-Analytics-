@@ -1,5 +1,9 @@
 **/__pycache__
 **/.venv
+venv/
+mlruns/
+lightning_logs/
+notebooks/
 **/.classpath
 **/.dockerignore
 **/.env
