@@ -28,7 +28,8 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import (accuracy_score, roc_auc_score, f1_score,
-                              classification_report, confusion_matrix, brier_score_loss)
+                              classification_report, confusion_matrix, brier_score_loss,
+                              precision_recall_curve)
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
@@ -289,8 +290,19 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     auc_cal = roc_auc_score(y_te, y_proba_cal)
     brier_cal = brier_score_loss(y_te, y_proba_cal)
     f1_cal = f1_score(y_te, y_pred_cal)
-    
+
     print(f"    Calibrated AUC: {auc_cal:.3f} | Brier: {brier_cal:.3f}")
+
+    # F1-optimal decision threshold on the calibrated probabilities. The serving
+    # layer (backend/routers/cancellation.py::_load_threshold) reads this from
+    # feature_config.joblib; without it, scoring silently falls back to 0.5.
+    prec, rec, thr = precision_recall_curve(y_te, y_proba_cal)
+    f1_curve = 2 * prec * rec / (prec + rec + 1e-9)
+    # precision_recall_curve returns one fewer threshold than precision/recall
+    # points (the last point has no threshold), so align on f1_curve[:-1].
+    best_threshold = float(thr[int(np.nanargmax(f1_curve[:-1]))]) if len(thr) else 0.5
+    f1_at_best = f1_score(y_te, (y_proba_cal >= best_threshold).astype(int))
+    print(f"    F1-optimal threshold: {best_threshold:.3f} (F1={f1_at_best:.3f} vs {f1_cal:.3f} @0.5)")
 
     # Reliability Diagram
     prob_true, prob_pred = calibration_curve(y_te, y_proba_cal, n_bins=10)
@@ -343,17 +355,22 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
                             "brier": brier_score_loss(sub["y_true"], sub["y_proba"])}
     subgroups["season"] = s_metrics
 
+    mlflow.log_metric("cancellation_best_threshold", best_threshold)
+
     metrics = {
         "accuracy": accuracy_score(y_te, y_pred_cal),
         "roc_auc": auc_cal,
         "f1": f1_cal,
         "brier": brier_cal,
+        "best_threshold": best_threshold,
         "engine": best_model_name,
     }
 
     pipe = Pipeline([("preprocessor", pre), ("classifier", calibrated)])
     joblib.dump(pipe, M("cancellation_model.joblib"))
-    joblib.dump({"features": FEATURES, "cat": CAT, "num": NUM, "engine": best_model_name}, M("feature_config.joblib"))
+    joblib.dump({"features": FEATURES, "cat": CAT, "num": NUM,
+                 "engine": best_model_name, "best_threshold": best_threshold},
+                M("feature_config.joblib"))
 
     rpt = classification_report(y_te, y_pred_cal, target_names=["Not Canceled", "Canceled"])
     return {**metrics, "report": rpt, "cm": confusion_matrix(y_te, y_pred_cal), "subgroups": subgroups, "baselines": {k: v["auc"] for k,v in results.items()}}

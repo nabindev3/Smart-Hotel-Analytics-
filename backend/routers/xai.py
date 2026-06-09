@@ -29,9 +29,7 @@ class BookingForXAI(BaseModel):
     previous_cancellations:         int   = 1
     previous_bookings_not_canceled: int   = 0
     reserved_room_type:             str   = "A"
-    booking_changes:                int   = 0
     deposit_type:                   str   = "No Deposit"
-    days_in_waiting_list:           float = 0
     customer_type:                  str   = "Transient"
     required_car_parking_spaces:    int   = 0
     total_of_special_requests:      int   = 0

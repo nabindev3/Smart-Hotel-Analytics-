@@ -18,12 +18,15 @@ import joblib, os
 from typing import Optional
 
 
+# Must match the training schema in src/train_models_ts.py exactly. The two
+# leakage columns (booking_changes, days_in_waiting_list) were dropped there,
+# so they must NOT appear here — otherwise NUM has more entries than the fitted
+# preprocessor produces and SHAP feature names get shifted/mislabeled.
 FEATURES = [
     "hotel","lead_time","arrival_date_month","total_stay","total_guests",
     "meal","country","market_segment","distribution_channel",
     "is_repeated_guest","previous_cancellations","previous_bookings_not_canceled",
-    "reserved_room_type","booking_changes","deposit_type",
-    "days_in_waiting_list","customer_type",
+    "reserved_room_type","deposit_type","customer_type",
     "required_car_parking_spaces","total_of_special_requests","adr",
 ]
 CAT = ["hotel","arrival_date_month","meal","country","market_segment",
@@ -78,7 +81,7 @@ class CancellationExplainer:
         Returns dict suitable for JSON serialisation and Plotly charts.
         """
         X_raw = X_raw.copy()
-        for col in ["children","adr","days_in_waiting_list","meal","country"]:
+        for col in ["children","adr","meal","country"]:
             if col in X_raw.columns:
                 if X_raw[col].dtype in ["float64","int64","float32"]:
                     X_raw[col] = X_raw[col].fillna(X_raw[col].median())
@@ -118,7 +121,7 @@ class CancellationExplainer:
         Returns top contributing features with direction and magnitude.
         """
         row = X_raw_row.copy()
-        for col in ["children","adr","days_in_waiting_list","meal","country"]:
+        for col in ["children","adr","meal","country"]:
             if col in row.columns:
                 if row[col].dtype in ["float64","int64","float32"]:
                     row[col] = row[col].fillna(row[col].median() if row[col].notna().any() else 0)
