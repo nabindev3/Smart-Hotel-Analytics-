@@ -51,4 +51,4 @@ Comparing Prophet (with external regressors) against N-BEATS (univariate baselin
 |---|---|---|
 | occupancy | 15.05% | 15.95% |
 | adr | 7.39% | N/A |
-| revenue | 22.10% | N/A |
+| revenue | 18.84% | N/A |

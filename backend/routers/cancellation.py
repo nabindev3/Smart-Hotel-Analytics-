@@ -42,20 +42,19 @@ class BookingInput(BaseModel):
     previous_cancellations:         int   = 0
     previous_bookings_not_canceled: int   = 0
     reserved_room_type:             str   = "A"
-    booking_changes:                int   = 0
     deposit_type:                   str   = "No Deposit"
-    days_in_waiting_list:           float = 0
     customer_type:                  str   = "Transient"
     required_car_parking_spaces:    int   = 0
     total_of_special_requests:      int   = 1
     adr:                            float = 120.0
 
+# Must match the training schema in src/train_models_ts.py (the leakage columns
+# booking_changes and days_in_waiting_list are intentionally excluded there).
 FEATURES = [
     "hotel","lead_time","arrival_date_month","total_stay","total_guests",
     "meal","country","market_segment","distribution_channel",
     "is_repeated_guest","previous_cancellations","previous_bookings_not_canceled",
-    "reserved_room_type","booking_changes","deposit_type",
-    "days_in_waiting_list","customer_type",
+    "reserved_room_type","deposit_type","customer_type",
     "required_car_parking_spaces","total_of_special_requests","adr",
 ]
 
