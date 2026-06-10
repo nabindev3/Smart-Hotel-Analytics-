@@ -1,7 +1,19 @@
 """
-generate_data.py — Production-Grade Hotel Data Generator
+generate_data.py — Synthetic Hotel Data Generator
 =========================================================
-Simulates the REAL-WORLD messiness a data pipeline must defend against:
+
+⚠️  ALL DATA PRODUCED HERE IS SYNTHETIC.  ⚠️
+Every booking, KPI, review, and external regressor below is *fabricated* by this
+script — there is no real hotel, PMS, or guest behind any of it. The whole
+analytics stack (forecasting, cancellation model, recommender, pricing) trains
+and evaluates on this generated data, so reported metrics reflect how well the
+models fit a simulation, not real-world performance. Treat this as a
+demonstration / portfolio pipeline, not a production system trained on real
+operations. To use it for real, replace these outputs with PMS/POS exports of
+the same schema.
+
+It deliberately simulates the REAL-WORLD messiness a data pipeline must defend
+against:
   • ~6% missing values (MCAR + MAR patterns)
   • ~2% outlier injections (fat-finger ADR, impossible lead times)
   • Concept drift: booking behaviour shifts 2022→2024 (post-COVID recovery)

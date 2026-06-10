@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ═══════════════════════════════════════════════════════════════════════
 #  Smart Hotel Analytics — Docker Compose
 #  Services: fastapi-backend · streamlit-frontend · mlflow-server
@@ -84,6 +82,3 @@ services:
 networks:
   hotel_net:
     driver: bridge
-
-volumes:
-  mlruns_data:

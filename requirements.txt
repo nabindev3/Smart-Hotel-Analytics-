@@ -156,7 +156,6 @@ prophet==1.3.0
 protobuf==6.33.6
 psutil
 ptyprocess
-PuLP==3.3.0
 pure-eval
 pyarrow==23.0.1
 pyasn1

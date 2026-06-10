@@ -29,23 +29,56 @@ try:
 except ImportError:
     _ANTHROPIC_OK = False
 
-CACHE_PATH = Path("data/sentiment_cache.json")
+# Centralised Claude model id — referenced here and by backend/routers/sentiment.py
+# and src/knowledge_distillation.py so the model is configured in exactly one place.
+CLAUDE_MODEL = "claude-sonnet-4-6"
 
-def _load_cache():
-    if CACHE_PATH.exists():
-        try:
-            with open(CACHE_PATH) as f: return json.load(f)
-        except: pass
-    return {}
+CACHE_PATH = Path("data/sentiment_cache.json")
+# Cap the on-disk cache so it can't grow without bound. When exceeded we keep the
+# most-recently-inserted entries (dicts preserve insertion order). This is size
+# eviction, not time-based — there is intentionally no per-entry TTL, since a
+# review's sentiment doesn't change once computed.
+CACHE_MAX_ENTRIES = 5000
+
+# In-memory view of the cache so we don't re-read and re-parse the whole JSON file
+# on every analyse() call. Reloaded only when the file's mtime changes.
+_cache_mem: Optional[dict] = None
+_cache_mtime: float = 0.0
+
+
+def _load_cache() -> dict:
+    """Return the cache, reusing the in-memory copy unless the file changed on
+    disk. Falls back to an empty cache on any read/parse error."""
+    global _cache_mem, _cache_mtime
+    if not CACHE_PATH.exists():
+        _cache_mem, _cache_mtime = {}, 0.0
+        return _cache_mem
+    try:
+        mtime = CACHE_PATH.stat().st_mtime
+        if _cache_mem is not None and mtime == _cache_mtime:
+            return _cache_mem
+        with open(CACHE_PATH) as f:
+            _cache_mem = json.load(f)
+        _cache_mtime = mtime
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        logger.warning(f"sentiment cache unreadable ({CACHE_PATH}): {e}; starting empty")
+        _cache_mem = {}
+    return _cache_mem
 
 def _save_cache(cache):
     """Best-effort cache save. Never raises — read-only mounts (e.g. Docker
     `./data:/app/data:ro`) and missing dirs just disable caching for the
     current request."""
+    global _cache_mtime
+    # Evict oldest entries beyond the cap before persisting.
+    if len(cache) > CACHE_MAX_ENTRIES:
+        for stale_key in list(cache.keys())[:len(cache) - CACHE_MAX_ENTRIES]:
+            del cache[stale_key]
     try:
         CACHE_PATH.parent.mkdir(exist_ok=True)
         with open(CACHE_PATH, "w") as f:
             json.dump(cache, f, indent=2)
+        _cache_mtime = CACHE_PATH.stat().st_mtime
     except (OSError, PermissionError) as e:
         logger.debug(f"sentiment cache disabled (cannot write {CACHE_PATH}): {e}")
 
@@ -69,11 +102,11 @@ _CLAUDE_SYSTEM = """Hotel sentiment analyst. Return ONLY valid JSON:
 Handle sarcasm: "Oh wonderful" when AC broke = Negative. "merely adequate" = mildly negative."""
 
 def _claude_analyse(text, client):
-    resp = client.messages.create(model="claude-sonnet-4-20250514", max_tokens=400,
+    resp = client.messages.create(model=CLAUDE_MODEL, max_tokens=400,
         system=_CLAUDE_SYSTEM, messages=[{"role":"user","content":f"Review: {text}"}])
     raw = re.sub(r"```json|```","", resp.content[0].text.strip()).strip()
     r = json.loads(raw)
-    r["engine"] = "Claude claude-sonnet-4-20250514"
+    r["engine"] = f"Claude {CLAUDE_MODEL}"
     return r
 
 _hf_engine = None
