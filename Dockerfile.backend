@@ -20,9 +20,20 @@ RUN pip install --no-cache-dir -r requirements.prod.txt
 # Copy source code
 COPY backend/   ./backend/
 COPY src/       ./src/
+COPY monitoring/ ./monitoring/
+
+# Model + data artifacts.
+# ── DEFAULT (baked) ───────────────────────────────────────────────────────────
+# The artifacts are baked into the image so the service runs with no external
+# store. This is the current source of truth (the files are committed to git).
 COPY data/      ./data/
 COPY models/    ./models/
-COPY monitoring/ ./monitoring/
+# ── LEAN mode (fetch at startup) ──────────────────────────────────────────────
+# To stop baking artifacts in (review #24): delete the two COPY lines above,
+# publish the artifacts with scripts/publish_artifacts.py, and set ONE of
+# ARTIFACTS_BUNDLE_URL / ARTIFACTS_BASE_URL in the runtime env. backend/artifacts.py
+# then downloads them on first use. See ARTIFACTS.md. Do this only after the
+# store is live, or the deploy will start with no models.
 
 # Non-root user for security
 RUN useradd -m appuser && chown -R appuser /app

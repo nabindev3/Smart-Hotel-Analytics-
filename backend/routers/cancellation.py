@@ -10,18 +10,19 @@ from typing import Optional
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
+from backend.artifacts import artifact_path
 router = APIRouter()
 
 @lru_cache(maxsize=1)
 def _load_cancel_model():
-    return joblib.load(os.path.join(ROOT,"models","cancellation_model.joblib"))
+    return joblib.load(artifact_path("models", "cancellation_model.joblib"))
 
 
 @lru_cache(maxsize=1)
 def _load_threshold() -> float:
     """Load the F1-optimal decision threshold saved by training. Falls
     back to 0.5 if the field is absent (older joblib files)."""
-    cfg_path = os.path.join(ROOT, "models", "feature_config.joblib")
+    cfg_path = artifact_path("models", "feature_config.joblib")
     if os.path.exists(cfg_path):
         cfg = joblib.load(cfg_path)
         if isinstance(cfg, dict):

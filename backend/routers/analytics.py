@@ -18,6 +18,7 @@ from fastapi import APIRouter, Query
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
+from backend.artifacts import artifact_path
 
 router = APIRouter()
 
@@ -42,7 +43,7 @@ CHANNEL_LABEL = {
 
 @lru_cache(maxsize=1)
 def _bookings() -> pd.DataFrame:
-    df = pd.read_csv(os.path.join(ROOT, "data", "bookings.csv"),
+    df = pd.read_csv(artifact_path("data", "bookings.csv"),
                      parse_dates=["arrival_date"])
     return df
 
@@ -203,7 +204,7 @@ def guest_mix(lookback_days: int = Query(365, ge=30, le=2000), top_n: int = 10):
 def revenue_trend(lookback_days: int = Query(180, ge=30, le=2000),
                   rolling: int = Query(7, ge=1, le=30)):
     """Daily revenue + rolling average, ready to chart."""
-    daily = pd.read_csv(os.path.join(ROOT, "data", "daily_kpis.csv"),
+    daily = pd.read_csv(artifact_path("data", "daily_kpis.csv"),
                         parse_dates=["ds"])
     cutoff = daily["ds"].max() - pd.Timedelta(days=lookback_days)
     recent = daily[daily["ds"] >= cutoff].copy()
