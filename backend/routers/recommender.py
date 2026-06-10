@@ -8,6 +8,7 @@ from pydantic import BaseModel
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 from src.recommender import GuestRecommender
+from backend.artifacts import artifact_path
 
 router = APIRouter()
 
@@ -18,11 +19,11 @@ def _load_recommender():
     pickle was produced by a different module path (the historical
     `python src/recommender.py` flow pickles as `__main__.GuestRecommender`).
     """
-    path = os.path.join(ROOT, "models", "recommender.joblib")
+    path = artifact_path("models", "recommender.joblib")
 
     def _train_and_save() -> "GuestRecommender":
         print("[recommender] Training fresh recommender…")
-        bk = pd.read_csv(os.path.join(ROOT, "data", "bookings.csv"))
+        bk = pd.read_csv(artifact_path("data", "bookings.csv"))
         rec = GuestRecommender()
         rec.fit(bk)
         rec.save(path)

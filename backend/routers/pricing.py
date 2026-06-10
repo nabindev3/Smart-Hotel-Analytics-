@@ -7,6 +7,7 @@ from pydantic import BaseModel
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 from src.pricing_engine import DynamicPricingEngine
+from backend.artifacts import artifact_path
 router  = APIRouter()
 _engine = DynamicPricingEngine()
 
@@ -16,7 +17,7 @@ from functools import lru_cache
 @lru_cache(maxsize=1)
 def _load_forecast():
     import joblib
-    b = joblib.load(os.path.join(ROOT,"models","prophet_occupancy.joblib"))
+    b = joblib.load(artifact_path("models", "prophet_occupancy.joblib"))
     return b["forecast"]
 
 @router.get("/recommendation")
@@ -26,8 +27,8 @@ def get_pricing(
 ):
     """Dynamic pricing recommendation based on Prophet demand forecast."""
     forecast_df = _load_forecast()
-    daily       = pd.read_csv(os.path.join(ROOT,"data","daily_kpis.csv"), parse_dates=["ds"])
-    ext         = pd.read_csv(os.path.join(ROOT,"data","external_regs.csv"), parse_dates=["ds"])
+    daily       = pd.read_csv(artifact_path("data", "daily_kpis.csv"), parse_dates=["ds"])
+    ext         = pd.read_csv(artifact_path("data", "external_regs.csv"), parse_dates=["ds"])
 
     rec = _engine.recommend(forecast_df, daily, ext,
                              horizon_days=horizon_days, current_adr=current_adr)
