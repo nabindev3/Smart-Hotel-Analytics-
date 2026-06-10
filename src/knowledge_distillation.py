@@ -33,6 +33,15 @@ try:
 except ImportError:
     HAS_ANTHROPIC = False
 
+# Single source of truth for the Claude model id (see src/sentiment_engine.py).
+try:
+    from src.sentiment_engine import CLAUDE_MODEL
+except ImportError:
+    try:
+        from sentiment_engine import CLAUDE_MODEL
+    except ImportError:
+        CLAUDE_MODEL = "claude-sonnet-4-6"
+
 DATASET_PATH = Path("data/distillation_dataset.csv")
 MODEL_DIR    = Path("models/distilbert_hotel_sentiment")
 
@@ -100,7 +109,7 @@ def generate_dataset(n: int = 500) -> pd.DataFrame:
     for i, prompt in enumerate(prompts[:n]):
         try:
             resp = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=CLAUDE_MODEL,
                 max_tokens=400,
                 system=GENERATION_SYSTEM,
                 messages=[{"role":"user","content": f"Description: {prompt}"}],

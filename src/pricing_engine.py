@@ -44,14 +44,22 @@ class DynamicPricingEngine:
       • Elasticity dampening   (avoid over-pricing in shoulder seasons)
     """
 
-    # Price elasticity: % ADR change per % demand deviation
+    # ─────────────────────────────────────────────────────────────────────────
+    # ⚠️  ASSUMPTION — these constants are hand-chosen heuristics, NOT estimated
+    #     from data. No demand model or price-response regression backs them, so
+    #     they are illustrative defaults only. To make pricing defensible,
+    #     estimate ELASTICITY empirically (e.g. regress log-occupancy on log-ADR
+    #     controlling for season/events) and set the bounds from business policy.
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # Price elasticity: % ADR change per % demand deviation. ASSUMED, not fitted.
     ELASTICITY = 0.40
 
-    # Hard bounds on price moves per recommendation cycle
+    # Hard bounds on price moves per recommendation cycle. ASSUMED policy guesses.
     MAX_INCREASE_PCT = 0.25
     MAX_DECREASE_PCT = 0.15
 
-    # RevPAR floor assumption (cost coverage)
+    # RevPAR floor (cost coverage). ASSUMED — should come from actual unit cost.
     MIN_ADR = 60.0
 
     # Room tier multipliers relative to base ADR

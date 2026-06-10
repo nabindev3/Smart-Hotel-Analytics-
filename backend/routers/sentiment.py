@@ -6,7 +6,7 @@ from typing import List
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
-from src.sentiment_engine import analyse, analyse_batch, get_active_engine
+from src.sentiment_engine import analyse, analyse_batch, get_active_engine, CLAUDE_MODEL
 from src.hf_sentiment_engine import MODELS as HF_MODELS
 
 router = APIRouter()
@@ -42,7 +42,7 @@ def engine_info():
         "tier_2": {
             "name":      "Anthropic Claude API",
             "available": claude_key,
-            "model":     "claude-sonnet-4-20250514",
+            "model":     CLAUDE_MODEL,
             "capabilities": ["sentiment","sarcasm","aspect-based","themes","nuance"],
             "latency_ms":   "500–2000",
             "cost":         "$0.003/1k tokens",

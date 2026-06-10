@@ -4,3 +4,13 @@ __pycache__/
 .DS_Store
 mlruns/
 lightning_logs/
+
+# Stale, orphaned MLflow store at the repo root — the pipeline actually uses
+# mlruns/mlflow.db (see src/train_models_ts.py MLFLOW_URI). Kept out of git.
+mlflow.db
+
+# NOTE: models/*.joblib and data/*.csv are intentionally TRACKED, not ignored.
+# The backend Docker image (Dockerfile.backend) does `COPY models/ data/` and
+# Render builds from a fresh git clone, so these artifacts must be present in
+# the repo for the deploy to work. Untracking them requires first moving to an
+# artifact store / model registry at serve time (see review items #18, #24).

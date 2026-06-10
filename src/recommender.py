@@ -1,6 +1,22 @@
 """
 recommender.py — Hyper-Personalised Guest Recommender
 ======================================================
+
+⚠️  SYNTHETIC / DEMONSTRATION MODEL — NOT REAL COLLABORATIVE FILTERING  ⚠️
+─────────────────────────────────────────────────────────────────────────────
+There is **no real guest×service interaction data** behind this model. The
+"interactions" are *fabricated* by `_build_interaction_matrix` from a handful of
+hand-written rules plus Gaussian noise, and the SVD is then factorised over that
+fabrication. As a result the model only re-derives the rules it was given — it
+learns nothing empirical, and the recommendations carry no real signal. This is
+a structural placeholder for a genuine recommender.
+
+To make this real, replace `_build_interaction_matrix` with an actual
+guest×service usage matrix sourced from the PMS (Property Management System) /
+POS — e.g. spa bookings, upgrades purchased, restaurant covers — and refit SVD
+on observed interactions.
+─────────────────────────────────────────────────────────────────────────────
+
 Collaborative filtering model that predicts the guest's Next Best Action (NBA).
 
 Approach:
@@ -53,6 +69,15 @@ SERVICE_LABELS = {
     "couples_package":        "💑 Couples Escape Package",
     "kids_club":              "🎠 Kids Club Access",
 }
+
+# Loyalty tiering thresholds (minimum count of previous non-cancelled bookings).
+# Ordered best → worst; the first tier whose threshold is met wins. Centralised
+# here rather than hard-coded inline so the cut-offs are configurable in one place.
+LOYALTY_TIERS = [
+    ("Gold",   5),
+    ("Silver", 2),
+    ("Bronze", 0),
+]
 
 # Revenue per upsell (for ROI reporting)
 SERVICE_REVENUE = {
@@ -216,11 +241,9 @@ class GuestRecommender:
                 "email_copy": email_copy,
             })
 
-        # Loyalty tier
+        # Loyalty tier — first tier (best → worst) whose threshold is met.
         prev_bookings = guest.get("previous_bookings_not_canceled", 0)
-        if prev_bookings >= 5:   loyalty = "Gold"
-        elif prev_bookings >= 2: loyalty = "Silver"
-        else:                    loyalty = "Bronze"
+        loyalty = next(name for name, floor in LOYALTY_TIERS if prev_bookings >= floor)
 
         nba = top_recs[0]["label"] if top_recs else "Standard welcome"
         est_upsell = sum(r["revenue"] * r["score"] for r in top_recs)

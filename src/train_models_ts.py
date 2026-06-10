@@ -10,7 +10,12 @@ What this does that basic pipelines don't:
 """
 
 import os, sys, json, time, warnings, argparse
-warnings.filterwarnings("ignore")
+# Scope warning suppression to the known-noisy third-party deprecation/future
+# warnings instead of a blanket ignore. A global filterwarnings("ignore") also
+# hides RuntimeWarnings (divide-by-zero, overflow) and UserWarnings about data
+# quality — the very signals we want to see during training.
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import numpy as np
 import pandas as pd
@@ -23,7 +28,6 @@ import seaborn as sns
 from prophet import Prophet
 from neuralforecast import NeuralForecast
 from neuralforecast.models import NBEATS
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -171,12 +175,26 @@ def train_all_prophet(daily: pd.DataFrame, ext: pd.DataFrame, run_id: str) -> di
         model, forecast, mape = train_prophet_model(name, cfg, train, test)
         elapsed = time.time() - t0
         
+        # CAVEAT: we persist the full pre-computed forecast alongside the model.
+        # This makes the joblib large and, more importantly, the forecast goes
+        # stale the moment training finishes — its date range is frozen at
+        # train time and does not advance with the calendar. The serving layer
+        # works around this (briefing.py has a "forecast doesn't reach today"
+        # fallback). The durable fix is to persist only the fitted `model` and
+        # call model.predict() at request time for the current horizon.
         bundle = {"model":model, "forecast":forecast, "mape":mape, "run_id":run_id, "train_cutoff":TRAIN_CUTOFF, "regressors":EXTERNAL_REGS}
         joblib.dump(bundle, M(f"prophet_{name}.joblib"))
         
         print(f"MAPE={mape:.2%}  [{elapsed:.1f}s]")
         
-        # N-BEATS baseline (only run for first target to avoid macOS semaphore leak limit)
+        # N-BEATS baseline. KNOWN LIMITATION: this is run only for the first
+        # target, so the RESULTS.md baseline table is half-empty. Root cause is
+        # the PyTorch-Lightning DataLoader spawning multiprocessing workers that
+        # leak named semaphores on macOS ("objc/resource_tracker" warnings),
+        # eventually hitting the per-process semaphore limit across 3 fits. The
+        # real fix is to force single-process data loading (num_workers=0 on the
+        # NeuralForecast/NBEATS dataloader) so all three targets can run; until
+        # then we cap it at one to keep training reliable on macOS dev machines.
         if name == "occupancy":
             print(f"  ▸ N-BEATS baseline [{name}] …", end=" ", flush=True)
             t1 = time.time()
@@ -229,10 +247,16 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     X = df[FEATURES].copy()
     y = df["is_canceled"].astype(int).copy()
 
-    # Walk-forward CV
-    tscv = TimeSeriesSplit(n_splits=5)
-    splits = list(tscv.split(X))
-    train_idx, test_idx = splits[-1] # use the last split for testing
+    # Single explicit temporal hold-out: train on the earliest rows, evaluate on
+    # the most recent. The previous code built a 5-fold TimeSeriesSplit but used
+    # only the last fold — paying for 5 splits and discarding 4. This computes
+    # exactly that last fold directly (test = final 1/6 of the rows, matching
+    # TimeSeriesSplit(n_splits=5)), so a retrain reproduces the same model.
+    # NOTE: this assumes `df` is in chronological order; sort upstream if not.
+    n_test   = max(1, len(X) // 6)
+    split_at = len(X) - n_test
+    train_idx = np.arange(0, split_at)
+    test_idx  = np.arange(split_at, len(X))
 
     X_tr_raw, X_te_raw = X.iloc[train_idx], X.iloc[test_idx]
     y_tr, y_te = y.iloc[train_idx], y.iloc[test_idx]
@@ -279,7 +303,12 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
 
     print(f"    Best baseline model: {best_model_name} (AUC: {best_auc:.3f})")
     
-    # Calibration
+    # Calibration. CalibratedClassifierCV(cv=3) fits the sigmoid on 3 internal
+    # folds of the *training* data only; the reliability numbers below are then
+    # reported on the single temporal hold-out (see calibration_curve / the
+    # reliability diagram). With one explicit hold-out there are no outer CV
+    # folds to report per-fold — per-fold reliability would require nested
+    # temporal CV, which is a deliberate non-goal here.
     print(f"    Calibrating {best_model_name}...")
     calibrated = CalibratedClassifierCV(estimator=best_model, method='sigmoid', cv=3)
     calibrated.fit(X_tr_p, y_tr)
@@ -396,6 +425,13 @@ def check_drift() -> dict:
         drift_report["metrics"][name] = {"baseline_mape": round(base_mape, 4), "current_mape": round(current_mape, 4), "degradation": round(degradation, 4)}
         if degradation > DRIFT_THRESHOLD: drift_report["drift_detected"] = True
 
+    # Persist the report so external consumers (the nightly CI drift job greps
+    # monitoring/drift_report.json for '"drift_detected": true') have a file to
+    # read. Previously this dict was only returned/printed, so the CI
+    # drift→retrain trigger never fired.
+    with open(MON("drift_report.json"), "w") as f:
+        json.dump(drift_report, f, indent=2)
+
     return drift_report
 
 def save_baseline(ts_results: dict, ml_results: dict):
@@ -411,7 +447,7 @@ def generate_results_md(ts_results: dict, ml_res: dict):
         "This document details the performance metrics after removing leakage columns and implementing a rigorous time-series walk-forward CV.",
         "",
         "## 1. Classification Baselines",
-        "Models were trained using 5-fold TimeSeriesSplit and evaluated on the final temporal holdout.",
+        "Models were trained on the earliest ~83% of rows and evaluated on a single chronological hold-out (the most recent ~17%).",
         "| Model | AUC |",
         "|---|---|",
     ]

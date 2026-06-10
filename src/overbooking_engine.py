@@ -1,7 +1,22 @@
 """
-overbooking_engine.py  — Linear Programming Overbooking Optimiser
+overbooking_engine.py  — Overbooking Optimiser
 ==================================================================
-Solves the classic hotel overbooking problem using Linear Programming (PuLP).
+Solves the classic hotel overbooking problem by enumerating every integer
+overbooking level Δ ∈ {0, …, max_overbook}, scoring expected profit for each,
+and selecting the most profitable level whose walk probability stays within the
+risk tolerance. This is a small 1-D search, so it is a direct filter + argmax —
+no LP solver is required (an earlier version used PuLP/CBC purely to express a
+"pick exactly one row" selection, which added a heavy solver dependency for a
+one-line operation).
+
+Modelling assumption
+--------------------
+The number of guests who cancel is treated as Binomial(n, p) and approximated by
+a Normal distribution to derive the walk probability (`norm.cdf`). This Gaussian
+approximation is convenient and accurate for large n with moderate p, but it is
+*crude for small booking counts or extreme cancellation rates* (p near 0 or 1),
+where the exact Binomial CDF should be preferred. Treat `walk_probability` as an
+estimate, not an exact figure.
 
 Given:
   • P(cancellation)  per booking tier (from ML model)
@@ -22,7 +37,7 @@ from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional
-import pulp
+from scipy.stats import norm
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -86,8 +101,8 @@ def solve_overbooking(
         # Expected number who show up = booked - expected cancellations
         e_show = booked - mu_cancel
 
-        # P(walk) = P(show > capacity) — normal CDF approximation
-        from scipy.stats import norm
+        # P(walk) = P(show > capacity) — Normal approximation to the Binomial
+        # (see module docstring for the limitations of this approximation).
         p_walk  = 1 - norm.cdf(capacity, loc=e_show, scale=sd_cancel)
 
         # Expected walks = E[max(show - capacity, 0)]
@@ -111,30 +126,20 @@ def solve_overbooking(
             "e_profit":   round(e_profit,    2),
         })
 
-    # ── PuLP formulation ──────────────────────────────────────────────────
-    prob = pulp.LpProblem("hotel_overbooking", pulp.LpMaximize)
-
-    x = pulp.LpVariable.dicts("overbook", range(max_overbook+1),
-                                cat="Binary")
-
-    # Objective: maximise expected profit
-    prob += pulp.lpSum(r["e_profit"] * x[r["delta"]] for r in results)
-
-    # Constraints
-    prob += pulp.lpSum(x[r["delta"]] for r in results) == 1   # pick exactly one
-    prob += pulp.lpSum(r["p_walk"] * x[r["delta"]] for r in results) <= max_walk_prob
-    prob += pulp.lpSum(r["delta"]  * x[r["delta"]] for r in results) >= 0
-
-    prob.solve(pulp.PULP_CBC_CMD(msg=0))
-
-    # Find optimal delta
-    optimal_delta = 0
-    for r in results:
-        if pulp.value(x[r["delta"]]) and pulp.value(x[r["delta"]]) > 0.5:
-            optimal_delta = r["delta"]
-            break
-
-    opt = next(r for r in results if r["delta"] == optimal_delta)
+    # ── Selection: max-profit level within the walk-risk tolerance ─────────
+    # The decision is "pick the single Δ with the highest expected profit among
+    # those whose walk probability is acceptable" — a filter followed by an
+    # argmax. No optimisation solver is needed for a 1-D enumerated search.
+    feasible = [r for r in results if r["p_walk"] <= max_walk_prob]
+    if feasible:
+        opt = max(feasible, key=lambda r: r["e_profit"])
+    else:
+        # Even Δ=0 breaches the walk tolerance (high no-show variance). Fall back
+        # to the lowest-risk option, which is always Δ=0 (walk risk is monotone
+        # increasing in Δ). This mirrors the previous behaviour, where the LP
+        # became infeasible and the code defaulted to Δ=0.
+        opt = min(results, key=lambda r: r["p_walk"])
+    optimal_delta = opt["delta"]
 
     # Recommendation text
     if optimal_delta == 0:
