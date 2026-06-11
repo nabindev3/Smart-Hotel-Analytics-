@@ -8,17 +8,18 @@ when they sit down at their desk in the morning. Designed for the new
 GET  /api/v1/briefing/today
 """
 from __future__ import annotations
-import os, sys, json
+
+import json
+import os
+from datetime import datetime
 from functools import lru_cache
-from datetime import datetime, timedelta
 
 import joblib
-import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
+from backend.artifacts import artifact_path
 
 router = APIRouter()
 
@@ -26,19 +27,19 @@ router = APIRouter()
 # ─── Caching helpers ────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
 def _load_daily() -> pd.DataFrame:
-    return pd.read_csv(os.path.join(ROOT, "data", "daily_kpis.csv"),
+    return pd.read_csv(artifact_path("data", "daily_kpis.csv"),
                        parse_dates=["ds"])
 
 
 @lru_cache(maxsize=1)
 def _load_bookings() -> pd.DataFrame:
-    return pd.read_csv(os.path.join(ROOT, "data", "bookings.csv"),
+    return pd.read_csv(artifact_path("data", "bookings.csv"),
                        parse_dates=["arrival_date"])
 
 
 @lru_cache(maxsize=3)
 def _load_prophet(name: str):
-    return joblib.load(os.path.join(ROOT, "models", f"prophet_{name}.joblib"))
+    return joblib.load(artifact_path("models", f"prophet_{name}.joblib"))
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -53,7 +54,6 @@ def _trend(curr: float, prev: float) -> dict:
 def _alerts(daily: pd.DataFrame, fc_occ: pd.DataFrame) -> list[dict]:
     """Generate plain-English alerts for the manager."""
     out = []
-    last30 = daily.tail(30)
     last7  = daily.tail(7)
     prev7  = daily.iloc[-14:-7] if len(daily) >= 14 else last7
 
@@ -167,7 +167,7 @@ def today_briefing(horizon_days: int = Query(7, ge=1, le=30)):
         fc_occ = pd.DataFrame()
 
     # Quality
-    quality_path = os.path.join(ROOT, "data", "data_quality.json")
+    quality_path = artifact_path("data", "data_quality.json")
     quality = {}
     if os.path.exists(quality_path):
         try:

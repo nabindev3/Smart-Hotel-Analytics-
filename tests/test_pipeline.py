@@ -5,10 +5,13 @@ Runs automatically on every git push via GitHub Actions.
 Tests: API health · model loading · data quality · business logic
 """
 
-import os, sys, json
-import pytest
-import pandas as pd
+import json
+import os
+import sys
+
 import numpy as np
+import pandas as pd
+import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -115,7 +118,7 @@ class TestModels:
         bookings["days_in_waiting_list"] = bookings["days_in_waiting_list"].fillna(0)
         bookings["meal"] = bookings["meal"].fillna("BB")
         bookings["country"] = bookings["country"].fillna("PRT")
-        bookings["total_stay"]   = bookings.get("total_stay", 
+        bookings["total_stay"]   = bookings.get("total_stay",
             bookings["stays_in_weekend_nights"] + bookings["stays_in_week_nights"])
         bookings["total_guests"] = bookings["adults"] + bookings["children"] + bookings["babies"]
 
@@ -138,7 +141,7 @@ class TestModels:
             pytest.skip("metrics.json not found")
         with open(path) as f:
             metrics = json.load(f)
-        
+
         assert metrics["holdout_auc"] > 0.80, f"AUC {metrics['holdout_auc']} <= 0.80"
         assert metrics["holdout_mape"] < 0.16, f"MAPE {metrics['holdout_mape']} >= 0.16"
 
@@ -174,7 +177,7 @@ class TestModels:
 # ─────────────────────────────────────────────────────────────────────────────
 class TestBusinessLogic:
     def test_overbooking_solver(self):
-        from src.overbooking_engine import solve_overbooking, BookingTier
+        from src.overbooking_engine import BookingTier, solve_overbooking
         tiers = [BookingTier("Standard", 80, 0.30, 120.0)]
         result = solve_overbooking(capacity=100, tiers=tiers)
         assert result.optimal_overbooking >= 0
@@ -183,14 +186,15 @@ class TestBusinessLogic:
         assert len(result.sensitivity) > 0
 
     def test_overbooking_walk_prob_constraint(self):
-        from src.overbooking_engine import solve_overbooking, BookingTier
+        from src.overbooking_engine import BookingTier, solve_overbooking
         tiers = [BookingTier("Standard", 120, 0.40, 100.0)]
         result = solve_overbooking(capacity=100, tiers=tiers, max_walk_prob=0.05)
         assert result.walk_probability <= 0.06  # small tolerance
 
     def test_pricing_engine(self):
+        import pandas as pd
+
         from src.pricing_engine import DynamicPricingEngine
-        import pandas as pd, numpy as np
         engine = DynamicPricingEngine()
         dates  = pd.date_range("2025-01-01", periods=60, freq="D")
         fc_df  = pd.DataFrame({"ds":dates,"yhat":np.full(60, 0.80)})
@@ -207,7 +211,6 @@ class TestBusinessLogic:
     def test_recommender_predict(self):
         path = os.path.join(ROOT,"models","recommender.joblib")
         if not os.path.exists(path): pytest.skip()
-        import joblib
         from src.recommender import GuestRecommender
         rec = GuestRecommender.load(path)
         result = rec.predict_guest({
@@ -268,6 +271,7 @@ class TestNewEndpoints:
     def client(self):
         try:
             from fastapi.testclient import TestClient
+
             from backend.main import app
         except Exception as e:
             pytest.skip(f"Could not boot FastAPI app: {e}")

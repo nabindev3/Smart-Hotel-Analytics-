@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch:        # manual trigger for the heavy training smoke test
   schedule:
     # Nightly model drift check at 02:00 UTC
     - cron: "0 2 * * *"
@@ -15,10 +16,10 @@ env:
 
 jobs:
   # ══════════════════════════════════════════════
-  # 1. UNIT TESTS
+  # 1. LINT + UNIT TESTS  (fast — no model training)
   # ══════════════════════════════════════════════
   test:
-    name: Unit Tests
+    name: Lint & Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,15 +30,31 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      # Slim install: the test suite runs against the committed model/data
+      # artifacts and only needs the serving deps + test tooling — not the full
+      # 250-line requirements.txt (tensorflow, jupyter, …). `-e .` installs the
+      # backend/src packages so imports work without sys.path hacks.
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt pytest pytest-asyncio httpx
+          pip install -r requirements.prod.txt pytest pytest-asyncio httpx ruff
+          pip install --no-deps -e .
 
-      - name: Generate synthetic data
-        run: python src/generate_data.py
+      - name: Lint (ruff)
+        run: ruff check backend scripts tests
 
-      - name: Train models (smoke test)
-        run: python src/train_models_ts.py
+      # Hard prerequisite: fail loudly if committed artifacts are missing, so the
+      # suite can't "pass" by skipping every data/model-dependent test.
+      - name: Verify artifacts present
+        run: |
+          python - <<'PY'
+          import os, sys
+          required = ["models/cancellation_model.joblib", "models/feature_config.joblib",
+                      "models/recommender.joblib", "data/bookings.csv", "data/daily_kpis.csv"]
+          missing = [p for p in required if not os.path.exists(p)]
+          if missing:
+              sys.exit("Missing committed artifacts: " + ", ".join(missing))
+          print("All required artifacts present.")
+          PY
 
       - name: Run unit tests
         run: pytest tests/ -v --tb=short
@@ -48,6 +65,32 @@ jobs:
         with:
           name: test-results
           path: tests/
+
+  # ══════════════════════════════════════════════
+  # 1b. TRAINING SMOKE TEST  (heavy — manual / on demand)
+  # ══════════════════════════════════════════════
+  # Full data-gen + training exercises the heavy pipeline (Prophet, N-BEATS,
+  # calibration, MLflow). It's minutes long and needs the full requirements, so
+  # it runs on manual dispatch instead of every push/PR.
+  train-smoke:
+    name: Training Smoke Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install full dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio httpx
+      - name: Generate synthetic data
+        run: python src/generate_data.py
+      - name: Train models
+        run: python src/train_models_ts.py
+      - name: Run unit tests on freshly trained models
+        run: pytest tests/ -v --tb=short
 
   # ══════════════════════════════════════════════
   # 2. BUILD & PUSH DOCKER IMAGES

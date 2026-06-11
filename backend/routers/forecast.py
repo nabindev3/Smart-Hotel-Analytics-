@@ -1,31 +1,31 @@
 """
 backend/routers/forecast.py — Prophet forecast endpoints
 """
-import os, sys
+import os
+from functools import lru_cache
+
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
-from functools import lru_cache
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
+from backend.artifacts import artifact_path
 
 router = APIRouter()
 
 @lru_cache(maxsize=3)
 def _load_prophet(name: str):
-    path = os.path.join(ROOT, "models", f"prophet_{name}.joblib")
+    path = artifact_path("models", f"prophet_{name}.joblib")
     if not os.path.exists(path):
         raise FileNotFoundError(f"Model not found: {path}")
     return joblib.load(path)
 
 def _load_daily():
-    return pd.read_csv(os.path.join(ROOT,"data","daily_kpis.csv"), parse_dates=["ds"])
+    return pd.read_csv(artifact_path("data", "daily_kpis.csv"), parse_dates=["ds"])
 
 def _load_ext():
-    return pd.read_csv(os.path.join(ROOT,"data","external_regs.csv"), parse_dates=["ds"])
+    return pd.read_csv(artifact_path("data", "external_regs.csv"), parse_dates=["ds"])
 
 
 @router.get("/kpis/summary")

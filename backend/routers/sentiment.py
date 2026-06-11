@@ -1,13 +1,13 @@
 """backend/routers/sentiment.py — NLP endpoints with engine info"""
-import os, sys
-from fastapi import APIRouter
-from pydantic import BaseModel
+import os
 from typing import List
 
+from fastapi import APIRouter
+from pydantic import BaseModel
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
-from src.sentiment_engine import analyse, analyse_batch, get_active_engine, CLAUDE_MODEL
 from src.hf_sentiment_engine import MODELS as HF_MODELS
+from src.sentiment_engine import CLAUDE_MODEL, analyse, analyse_batch, get_active_engine
 
 router = APIRouter()
 
@@ -67,7 +67,8 @@ def analyse_single(body: ReviewText):
     cold start, parse error, read-only cache, etc.), we walk down the tier
     fallback rather than returning a 500.
     """
-    import logging, traceback
+    import logging
+    import traceback
     log = logging.getLogger("sentiment")
     try:
         return analyse(body.text)

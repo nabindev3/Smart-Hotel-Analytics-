@@ -1,19 +1,20 @@
 """backend/routers/xai.py"""
-import os, sys
-import pandas as pd
+import os
 from functools import lru_cache
+
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
-from src.shap_explainer import CancellationExplainer, FEATURES
+from backend.artifacts import artifact_path
+from src.shap_explainer import FEATURES, CancellationExplainer
 
 router = APIRouter()
 
 @lru_cache(maxsize=1)
 def _load_explainer():
-    return CancellationExplainer(os.path.join(ROOT,"models","cancellation_model.joblib"))
+    return CancellationExplainer(artifact_path("models", "cancellation_model.joblib"))
 
 class BookingForXAI(BaseModel):
     hotel:                          str   = "Resort Hotel"
@@ -50,7 +51,7 @@ def explain_booking(booking: BookingForXAI):
 def global_importance(n_samples: int = 300):
     """Top-20 global feature importances from SHAP."""
     exp = _load_explainer()
-    bk  = pd.read_csv(os.path.join(ROOT,"data","bookings.csv"))
+    bk  = pd.read_csv(artifact_path("data", "bookings.csv"))
     try:
         result = exp.explain_global(bk[FEATURES], n_samples=n_samples)
         return {
@@ -66,7 +67,7 @@ def global_importance(n_samples: int = 300):
 def get_ablation_results():
     """Return pre-computed ablation study results."""
     import json
-    path = os.path.join(ROOT,"models","ablation_results.json")
+    path = artifact_path("models", "ablation_results.json")
     if not os.path.exists(path):
         raise HTTPException(404, "Run src/ablation_study.py first.")
     with open(path) as f:
