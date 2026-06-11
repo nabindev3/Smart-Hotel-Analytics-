@@ -9,15 +9,14 @@ Endpoints designed for the GM rather than the data scientist.
   GET  /api/v1/analytics/revenue-trend
 """
 from __future__ import annotations
-import os, sys
+
+import os
 from functools import lru_cache
 
-import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Query
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
 from backend.artifacts import artifact_path
 
 router = APIRouter()

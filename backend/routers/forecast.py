@@ -1,16 +1,15 @@
 """
 backend/routers/forecast.py — Prophet forecast endpoints
 """
-import os, sys
+import os
+from functools import lru_cache
+
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
-from functools import lru_cache
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
 from backend.artifacts import artifact_path
 
 router = APIRouter()

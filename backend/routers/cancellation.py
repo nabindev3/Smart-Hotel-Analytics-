@@ -1,16 +1,17 @@
 """
 backend/routers/cancellation.py
 """
-import os, sys
-import pandas as pd, joblib
+import os
 from functools import lru_cache
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-from typing import Optional
+
+import joblib
+import pandas as pd
+from fastapi import APIRouter
+from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
 from backend.artifacts import artifact_path
+
 router = APIRouter()
 
 @lru_cache(maxsize=1)

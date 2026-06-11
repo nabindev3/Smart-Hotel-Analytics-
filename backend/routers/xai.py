@@ -1,14 +1,14 @@
 """backend/routers/xai.py"""
-import os, sys
-import pandas as pd
+import os
 from functools import lru_cache
+
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
-from src.shap_explainer import CancellationExplainer, FEATURES
 from backend.artifacts import artifact_path
+from src.shap_explainer import FEATURES, CancellationExplainer
 
 router = APIRouter()
 

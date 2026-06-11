@@ -14,3 +14,8 @@ mlflow.db
 # Render builds from a fresh git clone, so these artifacts must be present in
 # the repo for the deploy to work. Untracking them requires first moving to an
 # artifact store / model registry at serve time (see review items #18, #24).
+
+# Python build / editable-install artifacts
+*.egg-info/
+build/
+dist/

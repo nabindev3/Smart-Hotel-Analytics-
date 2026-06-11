@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hotel-enterprise"
+version = "2.0.0"
+description = "Smart Hotel Analytics — ML platform for hotel revenue management"
+requires-python = ">=3.10"
+# Runtime dependencies are pinned in requirements.txt (full) and
+# requirements.prod.txt (slim serving set). We intentionally do NOT duplicate
+# them here, so `pip install -e .` makes the packages importable without
+# triggering a second dependency resolution (`pip install --no-deps -e .`).
+dependencies = []
+
+[tool.setuptools]
+# Make `backend` and `src` importable as installed packages — this is what lets
+# us drop the per-file `sys.path.insert(0, ROOT)` hacks.
+packages = ["backend", "backend.routers", "src"]
+
+# ── Lint (ruff) ───────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["venv", "mlruns", "lightning_logs", "notebooks"]
+
+[tool.ruff.lint]
+# Pyflakes (F) catches real bugs — unused/undefined names, etc. Keep it on.
+# pycodestyle E/W and import-sorting (I) round it out. Cosmetic rules the
+# codebase intentionally uses (compact one-line defs, multi-import lines, long
+# lines) are ignored so the gate flags substance, not style.
+select = ["E", "F", "W", "I"]
+ignore = ["E501", "E701", "E702", "E401", "E741", "E402"]
+
+[tool.ruff.lint.per-file-ignores]
+# Package __init__ files re-export submodules; those imports are intentional.
+"__init__.py" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

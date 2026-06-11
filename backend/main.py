@@ -10,21 +10,30 @@ Run (production):
   uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
 """
 
-import os, sys, time, logging, threading
+import logging
+import os
+import threading
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 # Add project root to path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
 
 from backend.routers import (
-    forecast, cancellation, pricing, overbooking, recommender, sentiment, xai,
-    briefing, analytics,
+    analytics,
+    briefing,
+    cancellation,
+    forecast,
+    overbooking,
+    pricing,
+    recommender,
+    sentiment,
+    xai,
 )
 
 logger = logging.getLogger("hotel_api")
@@ -58,9 +67,9 @@ def _try_load(name: str, loader) -> None:
 
 def _warm_models():
     from backend.routers.cancellation import _load_cancel_model
-    from backend.routers.forecast     import _load_prophet
-    from backend.routers.recommender  import _load_recommender
-    from backend.routers.xai          import _load_explainer
+    from backend.routers.forecast import _load_prophet
+    from backend.routers.recommender import _load_recommender
+    from backend.routers.xai import _load_explainer
 
     _try_load("cancellation", _load_cancel_model)
     for n in ["occupancy", "adr", "revenue"]:

@@ -1,12 +1,12 @@
 """backend/routers/overbooking.py"""
-import os, sys
-from fastapi import APIRouter
-from pydantic import BaseModel, Field
+import os
 from typing import List
 
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
-from src.overbooking_engine import solve_overbooking, BookingTier
+from src.overbooking_engine import BookingTier, solve_overbooking
 
 router = APIRouter()
 

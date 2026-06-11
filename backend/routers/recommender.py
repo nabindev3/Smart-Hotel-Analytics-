@@ -1,14 +1,14 @@
 """backend/routers/recommender.py"""
-import os, sys
-import pandas as pd
+import os
 from functools import lru_cache
-from fastapi import APIRouter, HTTPException
+
+import pandas as pd
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
-from src.recommender import GuestRecommender
 from backend.artifacts import artifact_path
+from src.recommender import GuestRecommender
 
 router = APIRouter()
 

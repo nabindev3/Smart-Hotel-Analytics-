@@ -27,12 +27,12 @@ applies instead of this layer raising.
 """
 from __future__ import annotations
 
+import logging
 import os
 import tarfile
-import logging
 import threading
-import urllib.request
 import urllib.error
+import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

@@ -1,4 +1,11 @@
 from . import (
-    forecast, cancellation, pricing, overbooking, recommender, sentiment, xai,
-    briefing, analytics,
+    analytics,
+    briefing,
+    cancellation,
+    forecast,
+    overbooking,
+    pricing,
+    recommender,
+    sentiment,
+    xai,
 )

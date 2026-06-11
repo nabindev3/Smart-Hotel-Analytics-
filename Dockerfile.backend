@@ -22,6 +22,12 @@ COPY backend/   ./backend/
 COPY src/       ./src/
 COPY monitoring/ ./monitoring/
 
+# Install the project so `backend` and `src` import as packages (this is what
+# replaces the old per-file sys.path.insert hacks). Runtime deps are already
+# installed above, so skip dependency resolution here.
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir --no-deps -e .
+
 # Model + data artifacts.
 # ── DEFAULT (baked) ───────────────────────────────────────────────────────────
 # The artifacts are baked into the image so the service runs with no external
