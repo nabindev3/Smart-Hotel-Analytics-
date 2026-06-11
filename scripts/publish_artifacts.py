@@ -54,6 +54,10 @@ REQUIRED = [
 OPTIONAL = [
     "models/ablation_results.json",
     "data/data_quality.json",
+    # Parquet siblings (preferred fast path at serve time; CSV is the fallback).
+    "data/bookings.parquet",
+    "data/daily_kpis.parquet",
+    "data/external_regs.parquet",
 ]
 
 

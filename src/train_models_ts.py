@@ -39,6 +39,7 @@ from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 
+from src.data_io import read_table
 from src.schemas import validate_clean_bookings, validate_raw_bookings
 
 # ── Paths ──────────────────────────────────────────────────────────────────
@@ -533,12 +534,12 @@ def run_training(force: bool = False) -> str:
         run_id = run.info.run_id
         
         print("\n[1/3] Prophet & N-BEATS Models …")
-        daily = pd.read_csv(D("daily_kpis.csv"), parse_dates=["ds"])
-        ext   = pd.read_csv(D("external_regs.csv"), parse_dates=["ds"])
+        daily = read_table(D("daily_kpis.csv"), parse_dates=["ds"])
+        ext   = read_table(D("external_regs.csv"), parse_dates=["ds"])
         ts_results = train_all_prophet(daily, ext, run_id)
 
         print("\n[2/3] Cancellation Classification …")
-        bookings = pd.read_csv(D("bookings.csv"))
+        bookings = read_table(D("bookings.csv"))
         ml_res   = train_cancellation_model(bookings)
 
         mlflow.log_metric("cancellation_accuracy", ml_res["accuracy"])

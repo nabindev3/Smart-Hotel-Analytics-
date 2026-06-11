@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
+from src.data_io import read_table
 from src.shap_explainer import FEATURES, CancellationExplainer
 
 router = APIRouter()
@@ -51,7 +52,7 @@ def explain_booking(booking: BookingForXAI):
 def global_importance(n_samples: int = 300):
     """Top-20 global feature importances from SHAP."""
     exp = _load_explainer()
-    bk  = pd.read_csv(artifact_path("data", "bookings.csv"))
+    bk  = read_table(artifact_path("data", "bookings.csv"))
     try:
         result = exp.explain_global(bk[FEATURES], n_samples=n_samples)
         return {

@@ -20,6 +20,7 @@ from fastapi import APIRouter, Query
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
+from src.data_io import read_table
 
 router = APIRouter()
 
@@ -27,14 +28,14 @@ router = APIRouter()
 # ─── Caching helpers ────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
 def _load_daily() -> pd.DataFrame:
-    return pd.read_csv(artifact_path("data", "daily_kpis.csv"),
-                       parse_dates=["ds"])
+    return read_table(artifact_path("data", "daily_kpis.csv"),
+                      parse_dates=["ds"])
 
 
 @lru_cache(maxsize=1)
 def _load_bookings() -> pd.DataFrame:
-    return pd.read_csv(artifact_path("data", "bookings.csv"),
-                       parse_dates=["arrival_date"])
+    return read_table(artifact_path("data", "bookings.csv"),
+                      parse_dates=["arrival_date"])
 
 
 @lru_cache(maxsize=3)
