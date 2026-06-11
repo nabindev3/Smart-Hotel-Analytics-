@@ -1,6 +1,7 @@
 fastapi==0.136.1
 uvicorn==0.46.0
 pandas==2.2.3
+pyarrow==23.0.1   # typed parquet reads for the analytical frames (src/data_io.py)
 numpy==2.2.2
 scikit-learn==1.7.2
 xgboost

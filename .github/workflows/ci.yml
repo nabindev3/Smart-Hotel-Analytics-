@@ -36,7 +36,10 @@ jobs:
       # backend/src packages so imports work without sys.path hacks.
       - name: Install dependencies
         run: |
-          pip install -r requirements.prod.txt pytest pytest-asyncio httpx ruff
+          # prod deps + test tooling. pandera is a data-contract dep used by the
+          # schema tests; it stays out of requirements.prod.txt so the serving
+          # image isn't burdened with it.
+          pip install -r requirements.prod.txt pytest pytest-asyncio httpx ruff pandera
           pip install --no-deps -e .
 
       - name: Lint (ruff)

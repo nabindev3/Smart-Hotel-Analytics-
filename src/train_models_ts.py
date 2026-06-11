@@ -39,6 +39,9 @@ from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 
+from src.data_io import read_table
+from src.schemas import validate_clean_bookings, validate_raw_bookings
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 D        = lambda f: os.path.join(BASE, "data",       f)
@@ -216,7 +219,10 @@ def train_all_prophet(daily: pd.DataFrame, ext: pd.DataFrame, run_id: str) -> di
 # ML CANCELLATION PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════
 def clean_bookings(bookings: pd.DataFrame) -> pd.DataFrame:
-    df = bookings.copy()
+    # Contract: validate + coerce the raw frame before doing anything with it, so
+    # a structural problem (missing column, non-binary target, junk types) fails
+    # here with one readable error instead of downstream NaN/KeyError surprises.
+    df = validate_raw_bookings(bookings.copy())
     if "arrival_date" in df.columns:
         df["arrival_date"] = pd.to_datetime(df["arrival_date"])
         df = df.sort_values("arrival_date").reset_index(drop=True)
@@ -238,7 +244,9 @@ def clean_bookings(bookings: pd.DataFrame) -> pd.DataFrame:
         df    = df[(df[col] >= q1) & (df[col] <= q3)]
 
     print(f"    Clean shape: {df.shape} | cancel rate: {df['is_canceled'].mean():.2%}")
-    return df
+    # Postcondition: the cleaned frame must satisfy the tight invariants the rest
+    # of the pipeline assumes. If this fails, cleaning and the contract drifted.
+    return validate_clean_bookings(df)
 
 def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     print("  ▸ Cancellation classifiers (Walk-forward CV + Calibration) …")
@@ -401,6 +409,17 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
                  "engine": best_model_name, "best_threshold": best_threshold},
                 M("feature_config.joblib"))
 
+    # Register the pipeline in the MLflow Model Registry so serving can load a
+    # promoted version instead of a raw path (see backend/registry.py). Best
+    # effort — a registry hiccup must never fail a training run.
+    try:
+        import mlflow.sklearn
+        mlflow.sklearn.log_model(pipe, name="cancellation_model",
+                                 registered_model_name="hotel_cancellation")
+        print("    Registered model 'hotel_cancellation' in the MLflow registry.")
+    except Exception as e:
+        print(f"    [registry] model registration skipped: {e}")
+
     rpt = classification_report(y_te, y_pred_cal, target_names=["Not Canceled", "Canceled"])
     return {**metrics, "report": rpt, "cm": confusion_matrix(y_te, y_pred_cal), "subgroups": subgroups, "baselines": {k: v["auc"] for k,v in results.items()}}
 
@@ -526,12 +545,12 @@ def run_training(force: bool = False) -> str:
         run_id = run.info.run_id
         
         print("\n[1/3] Prophet & N-BEATS Models …")
-        daily = pd.read_csv(D("daily_kpis.csv"), parse_dates=["ds"])
-        ext   = pd.read_csv(D("external_regs.csv"), parse_dates=["ds"])
+        daily = read_table(D("daily_kpis.csv"), parse_dates=["ds"])
+        ext   = read_table(D("external_regs.csv"), parse_dates=["ds"])
         ts_results = train_all_prophet(daily, ext, run_id)
 
         print("\n[2/3] Cancellation Classification …")
-        bookings = pd.read_csv(D("bookings.csv"))
+        bookings = read_table(D("bookings.csv"))
         ml_res   = train_cancellation_model(bookings)
 
         mlflow.log_metric("cancellation_accuracy", ml_res["accuracy"])

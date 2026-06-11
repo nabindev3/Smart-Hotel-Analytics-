@@ -35,6 +35,8 @@ import numpy as np
 import pandas as pd
 from datetime import date, timedelta
 
+from src.data_io import write_table
+
 np.random.seed(2024)
 
 # ── Constants ─────────────────────────────────────────────────────────────
@@ -470,20 +472,20 @@ if __name__ == "__main__":
 
     print("Generating 60,000 messy hotel bookings (2019–2024)…")
     bookings = generate_bookings()
-    bookings.to_csv("data/bookings.csv", index=False)
-    print(f"  ✓ bookings.csv  — {len(bookings):,} rows | "
+    write_table(bookings, "data/bookings.csv")  # CSV + parquet sibling
+    print(f"  ✓ bookings  — {len(bookings):,} rows | "
           f"cancel rate: {bookings['is_canceled'].mean():.1%} | "
           f"missing: {bookings.isna().mean().mean():.1%}")
 
     print("Aggregating daily KPI series…")
     daily = generate_daily_kpis(bookings)
-    daily.to_csv("data/daily_kpis.csv", index=False)
-    print(f"  ✓ daily_kpis.csv — {len(daily):,} days")
+    write_table(daily, "data/daily_kpis.csv")
+    print(f"  ✓ daily_kpis — {len(daily):,} days")
 
     print("Generating external regressors…")
     ext = generate_external_regressors(daily)
-    ext.to_csv("data/external_regs.csv", index=False)
-    print(f"  ✓ external_regs.csv — {ext.shape[1]-1} regressors over {len(ext):,} days")
+    write_table(ext, "data/external_regs.csv")
+    print(f"  ✓ external_regs — {ext.shape[1]-1} regressors over {len(ext):,} days")
 
     print("Building data quality report…")
     report = build_quality_report(bookings)

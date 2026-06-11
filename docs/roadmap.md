@@ -4,17 +4,23 @@ Roughly priority-ordered. Most of this comes out of the retrospective and the
 review items I consciously deferred rather than half-build. "Status" is honest —
 some of these are designed-but-not-done, not just ideas.
 
+## Recently done
+
+- **Data contract on ingestion.** ✅ `src/schemas.py` — a pandera contract wraps
+  `clean_bookings` (structural check on raw, invariant check on clean).
+- **Parquet for the analytical frames.** ✅ `src/data_io.py` reads parquet when
+  present (CSV fallback); committed parquet siblings, ~7x smaller bookings.
+- **Model registry at serve time.** ✅ Training registers `hotel_cancellation`;
+  `backend/registry.py` serves it from the registry when configured, else joblib.
+
 ## Near term — pay down the known debt
 
 - **Flip the artifact store on.** The resolver (`backend/artifacts.py`) and
   publish script exist; what's left is to publish a bundle, point
   `ARTIFACTS_BUNDLE_URL` at it, drop the `COPY` lines, and untrack the binaries.
   Ordered steps are in `ARTIFACTS.md`. *Status: mechanism done, switch not
-  thrown (it breaks the deploy until a store is live).*
-- **Data contract on ingestion.** Add a `pandera` (or Great Expectations) schema
-  for the raw bookings frame — types, ranges, nullability — and fail fast with a
-  readable error instead of letting bad rows trickle into scattered `fillna`s.
-  *Status: not started.*
+  thrown (it breaks the deploy until a store is live, and needs the Render env
+  set — neither of which can be done from the codebase alone).*
 - **Lint `src/` too.** The CI ruff gate currently covers `backend scripts tests`.
   `src/` needs an import-ordering + unused-import cleanup (carefully — there's a
   `warnings.filterwarnings` ordering trap) before it can join the gate. *Status:
@@ -25,12 +31,6 @@ some of these are designed-but-not-done, not just ideas.
 
 ## Medium term — make the serving real
 
-- **Model registry at serve time.** Training already logs to MLflow; wire the
-  backend to load the *registered/promoted* model version instead of a raw
-  `.joblib` path. Closes the loop and makes rollbacks a version bump.
-- **Parquet over CSV.** `bookings.csv` etc. are re-read and re-parsed on every
-  cold cache. Typed, columnar parquet is faster and removes the `parse_dates`
-  guesswork.
 - **Cost-based cancellation threshold.** Replace the F1-optimal default with a
   threshold derived from the actual cost of walking a guest vs. an empty room.
   This is the one that turns the risk score into a business decision.

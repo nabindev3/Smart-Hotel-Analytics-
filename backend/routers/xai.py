@@ -8,13 +8,17 @@ from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
+from backend.registry import load_cancellation_pipeline
+from src.data_io import read_table
 from src.shap_explainer import FEATURES, CancellationExplainer
 
 router = APIRouter()
 
 @lru_cache(maxsize=1)
 def _load_explainer():
-    return CancellationExplainer(artifact_path("models", "cancellation_model.joblib"))
+    # Share the predictor's model source (registry or joblib) so SHAP explains
+    # exactly the model that's serving predictions.
+    return CancellationExplainer(model=load_cancellation_pipeline())
 
 class BookingForXAI(BaseModel):
     hotel:                          str   = "Resort Hotel"
@@ -51,7 +55,7 @@ def explain_booking(booking: BookingForXAI):
 def global_importance(n_samples: int = 300):
     """Top-20 global feature importances from SHAP."""
     exp = _load_explainer()
-    bk  = pd.read_csv(artifact_path("data", "bookings.csv"))
+    bk  = read_table(artifact_path("data", "bookings.csv"))
     try:
         result = exp.explain_global(bk[FEATURES], n_samples=n_samples)
         return {

@@ -8,6 +8,40 @@ Newest first.
 
 ---
 
+## Parquet as the fast read path, CSV kept as the canonical fallback
+
+**Context.** The analytical frames get re-read constantly, and `bookings.csv` is
+~27 MB / 180k rows that pandas re-parses (and re-guesses dtypes for) every time.
+
+**Decision.** `src/data_io.py::read_table` prefers a typed `.parquet` sibling
+when one exists, falling back to CSV. `generate_data` writes both; the parquet
+files are committed (bookings drops 27 MB → 3.5 MB). `pyarrow` is now in the prod
+requirements so the serving image can read them.
+
+**Trade-off.** This nudges against the "slim prod image" decision below — pyarrow
+is a chunky wheel. I decided the typing + ~7x smaller bookings file are worth it,
+and crucially the Render OOM was a *runtime* problem (workers × loaded models),
+not image-size, so this doesn't reintroduce it. CSV stays committed as the
+portable, human-readable copy and the "messy data" demonstration, so nothing
+hard-breaks if pyarrow is ever absent (`read_table` falls back).
+
+## Validate ingested data with a contract, not hope
+
+**Context.** Cleaning was a pile of `fillna`/range filters with implicit
+assumptions about what the input looked like. A surprise column or a non-binary
+target would surface as a confusing downstream error.
+
+**Decision.** A pandera contract (`src/schemas.py`) wraps `clean_bookings`: a
+lenient structural check on the raw frame (columns, coercible types, binary
+target — but tolerant of the generator's deliberate outliers), and a strict
+invariant check on the cleaned frame (bounded lead time, non-negative ADR, ≥1
+guest). Fail fast, with every violation listed.
+
+**Trade-off.** It's another dependency, but a training-only one — pandera stays
+out of `requirements.prod.txt`, so the serving image doesn't carry it.
+
+---
+
 ## Serve from an artifact resolver, not hardcoded paths
 
 **Context.** Every router loaded models and CSVs with

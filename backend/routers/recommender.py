@@ -2,12 +2,12 @@
 import os
 from functools import lru_cache
 
-import pandas as pd
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
+from src.data_io import read_table
 from src.recommender import GuestRecommender
 
 router = APIRouter()
@@ -23,7 +23,7 @@ def _load_recommender():
 
     def _train_and_save() -> "GuestRecommender":
         print("[recommender] Training fresh recommender…")
-        bk = pd.read_csv(artifact_path("data", "bookings.csv"))
+        bk = read_table(artifact_path("data", "bookings.csv"))
         rec = GuestRecommender()
         rec.fit(bk)
         rec.save(path)

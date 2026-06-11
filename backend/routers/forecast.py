@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
+from src.data_io import read_table
 
 router = APIRouter()
 
@@ -22,10 +23,10 @@ def _load_prophet(name: str):
     return joblib.load(path)
 
 def _load_daily():
-    return pd.read_csv(artifact_path("data", "daily_kpis.csv"), parse_dates=["ds"])
+    return read_table(artifact_path("data", "daily_kpis.csv"), parse_dates=["ds"])
 
 def _load_ext():
-    return pd.read_csv(artifact_path("data", "external_regs.csv"), parse_dates=["ds"])
+    return read_table(artifact_path("data", "external_regs.csv"), parse_dates=["ds"])
 
 
 @router.get("/kpis/summary")
