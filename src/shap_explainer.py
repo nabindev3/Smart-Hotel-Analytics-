@@ -40,8 +40,11 @@ class CancellationExplainer:
     on the transformed feature space, then maps back to readable names.
     """
 
-    def __init__(self, model_path: str = "models/cancellation_model.joblib"):
-        pipeline = joblib.load(model_path)
+    def __init__(self, model_path: str = "models/cancellation_model.joblib", model=None):
+        # Accept either a path (joblib) or an already-loaded pipeline (e.g. one
+        # pulled from the MLflow registry), so the explainer and the predictor
+        # can share a single model source.
+        pipeline = model if model is not None else joblib.load(model_path)
         self.preprocessor = pipeline.named_steps["preprocessor"]
         self.clf           = pipeline.named_steps["classifier"]
         self._explainer:   Optional[shap.TreeExplainer] = None

@@ -409,6 +409,17 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
                  "engine": best_model_name, "best_threshold": best_threshold},
                 M("feature_config.joblib"))
 
+    # Register the pipeline in the MLflow Model Registry so serving can load a
+    # promoted version instead of a raw path (see backend/registry.py). Best
+    # effort — a registry hiccup must never fail a training run.
+    try:
+        import mlflow.sklearn
+        mlflow.sklearn.log_model(pipe, name="cancellation_model",
+                                 registered_model_name="hotel_cancellation")
+        print("    Registered model 'hotel_cancellation' in the MLflow registry.")
+    except Exception as e:
+        print(f"    [registry] model registration skipped: {e}")
+
     rpt = classification_report(y_te, y_pred_cal, target_names=["Not Canceled", "Canceled"])
     return {**metrics, "report": rpt, "cm": confusion_matrix(y_te, y_pred_cal), "subgroups": subgroups, "baselines": {k: v["auc"] for k,v in results.items()}}
 

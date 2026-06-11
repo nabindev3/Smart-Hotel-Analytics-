@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
+from backend.registry import load_cancellation_pipeline
 from src.data_io import read_table
 from src.shap_explainer import FEATURES, CancellationExplainer
 
@@ -15,7 +16,9 @@ router = APIRouter()
 
 @lru_cache(maxsize=1)
 def _load_explainer():
-    return CancellationExplainer(artifact_path("models", "cancellation_model.joblib"))
+    # Share the predictor's model source (registry or joblib) so SHAP explains
+    # exactly the model that's serving predictions.
+    return CancellationExplainer(model=load_cancellation_pipeline())
 
 class BookingForXAI(BaseModel):
     hotel:                          str   = "Resort Hotel"

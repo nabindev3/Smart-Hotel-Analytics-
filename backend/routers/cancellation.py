@@ -11,12 +11,14 @@ from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
+from backend.registry import load_cancellation_pipeline
 
 router = APIRouter()
 
 @lru_cache(maxsize=1)
 def _load_cancel_model():
-    return joblib.load(artifact_path("models", "cancellation_model.joblib"))
+    # Registry when configured (MLFLOW_CANCELLATION_MODEL), else local joblib.
+    return load_cancellation_pipeline()
 
 
 @lru_cache(maxsize=1)
