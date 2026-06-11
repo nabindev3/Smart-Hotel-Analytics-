@@ -140,6 +140,7 @@ opt-einsum
 overrides
 packaging
 pandas==2.2.3
+pandera==0.31.1
 pandocfilters
 parso
 patsy==1.0.2

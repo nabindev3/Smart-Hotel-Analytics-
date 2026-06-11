@@ -39,6 +39,8 @@ from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 
+from src.schemas import validate_clean_bookings, validate_raw_bookings
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 D        = lambda f: os.path.join(BASE, "data",       f)
@@ -216,7 +218,10 @@ def train_all_prophet(daily: pd.DataFrame, ext: pd.DataFrame, run_id: str) -> di
 # ML CANCELLATION PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════
 def clean_bookings(bookings: pd.DataFrame) -> pd.DataFrame:
-    df = bookings.copy()
+    # Contract: validate + coerce the raw frame before doing anything with it, so
+    # a structural problem (missing column, non-binary target, junk types) fails
+    # here with one readable error instead of downstream NaN/KeyError surprises.
+    df = validate_raw_bookings(bookings.copy())
     if "arrival_date" in df.columns:
         df["arrival_date"] = pd.to_datetime(df["arrival_date"])
         df = df.sort_values("arrival_date").reset_index(drop=True)
@@ -238,7 +243,9 @@ def clean_bookings(bookings: pd.DataFrame) -> pd.DataFrame:
         df    = df[(df[col] >= q1) & (df[col] <= q3)]
 
     print(f"    Clean shape: {df.shape} | cancel rate: {df['is_canceled'].mean():.2%}")
-    return df
+    # Postcondition: the cleaned frame must satisfy the tight invariants the rest
+    # of the pipeline assumes. If this fails, cleaning and the contract drifted.
+    return validate_clean_bookings(df)
 
 def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     print("  ▸ Cancellation classifiers (Walk-forward CV + Calibration) …")
