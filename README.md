@@ -27,6 +27,7 @@ A comprehensive forecasting and analytics ML platform for hotel revenue manageme
    python -m venv venv
    source venv/bin/activate
    pip install -r requirements.txt
+   pip install -e .          # installs the backend/src packages (no sys.path hacks)
    ```
 
 3. **Run the Backend (FastAPI)**:

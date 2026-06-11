@@ -8,17 +8,17 @@ when they sit down at their desk in the morning. Designed for the new
 GET  /api/v1/briefing/today
 """
 from __future__ import annotations
-import os, sys, json
+
+import json
+import os
+from datetime import datetime
 from functools import lru_cache
-from datetime import datetime, timedelta
 
 import joblib
-import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
 from backend.artifacts import artifact_path
 
 router = APIRouter()
@@ -54,7 +54,6 @@ def _trend(curr: float, prev: float) -> dict:
 def _alerts(daily: pd.DataFrame, fc_occ: pd.DataFrame) -> list[dict]:
     """Generate plain-English alerts for the manager."""
     out = []
-    last30 = daily.tail(30)
     last7  = daily.tail(7)
     prev7  = daily.iloc[-14:-7] if len(daily) >= 14 else last7
 

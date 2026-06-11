@@ -1,22 +1,23 @@
 """backend/routers/pricing.py"""
-import os, sys
+import os
+
 import pandas as pd
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT)
-from src.pricing_engine import DynamicPricingEngine
 from backend.artifacts import artifact_path
+from src.pricing_engine import DynamicPricingEngine
+
 router  = APIRouter()
 _engine = DynamicPricingEngine()
 
-import joblib
 from functools import lru_cache
+
+import joblib
+
 
 @lru_cache(maxsize=1)
 def _load_forecast():
-    import joblib
     b = joblib.load(artifact_path("models", "prophet_occupancy.joblib"))
     return b["forecast"]
 

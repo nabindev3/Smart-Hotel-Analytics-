@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-setup.py — One-click bootstrap
-================================
-python setup.py             # generate data + train all models
-python setup.py --ablation  # also run ablation study (takes ~5 min)
-python setup.py --distil    # generate NLP training data via Claude API
+bootstrap.py — One-click project bootstrap (data + model training)
+==================================================================
+NOTE: This is a task runner, not a setuptools script. Packaging metadata lives
+in pyproject.toml; `pip install -e .` installs the `backend`/`src` packages.
+
+python bootstrap.py             # generate data + train all models
+python bootstrap.py --ablation  # also run ablation study (takes ~5 min)
+python bootstrap.py --distil    # generate NLP training data via Claude API
 
 Then:
   uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
