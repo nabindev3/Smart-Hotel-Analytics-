@@ -43,7 +43,7 @@ jobs:
           pip install --no-deps -e .
 
       - name: Lint (ruff)
-        run: ruff check backend scripts tests
+        run: ruff check backend scripts tests frontend
 
       # Hard prerequisite: fail loudly if committed artifacts are missing, so the
       # suite can't "pass" by skipping every data/model-dependent test.
