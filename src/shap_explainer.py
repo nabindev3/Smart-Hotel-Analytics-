@@ -11,12 +11,13 @@ Uses TreeExplainer (O(TLD²) complexity vs O(2^d) brute force).
 """
 
 from __future__ import annotations
+
+from typing import Optional
+
+import joblib
 import numpy as np
 import pandas as pd
 import shap
-import joblib, os
-from typing import Optional
-
 
 # Must match the training schema in src/train_models_ts.py exactly. The two
 # leakage columns (booking_changes, days_in_waiting_list) were dropped there,

@@ -12,6 +12,13 @@ some of these are designed-but-not-done, not just ideas.
   present (CSV fallback); committed parquet siblings, ~7x smaller bookings.
 - **Model registry at serve time.** ✅ Training registers `hotel_cancellation`;
   `backend/registry.py` serves it from the registry when configured, else joblib.
+- **Lint the whole repo.** ✅ The ruff gate now covers `backend scripts tests
+  frontend src` — cleaning `src/` also caught a real `UnboundLocalError` (a
+  shadowing local `mlflow` import in training).
+- **Guard prod deps against the saved engine.** ✅ `scripts/check_prod_deps.py`
+  (run in CI) fails the build if the saved model's engine library isn't
+  importable and listed in `requirements.prod.txt` — the lightgbm footgun can't
+  recur silently.
 
 ## Near term — pay down the known debt
 
@@ -21,13 +28,6 @@ some of these are designed-but-not-done, not just ideas.
   Ordered steps are in `ARTIFACTS.md`. *Status: mechanism done, switch not
   thrown (it breaks the deploy until a store is live, and needs the Render env
   set — neither of which can be done from the codebase alone).*
-- **Lint `src/` too.** The CI ruff gate currently covers `backend scripts tests`.
-  `src/` needs an import-ordering + unused-import cleanup (carefully — there's a
-  `warnings.filterwarnings` ordering trap) before it can join the gate. *Status:
-  scoped, not done.*
-- **Derive prod deps from the saved engine.** So that if LightGBM ever wins the
-  bake-off, the production image installs it automatically instead of failing to
-  unpickle. *Status: idea.*
 
 ## Medium term — make the serving real
 

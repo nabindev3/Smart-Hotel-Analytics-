@@ -45,7 +45,7 @@ jobs:
           pip install --no-deps -e .
 
       - name: Lint (ruff)
-        run: ruff check backend scripts tests frontend
+        run: ruff check backend scripts tests frontend src
 
       # Hard prerequisite: fail loudly if committed artifacts are missing, so the
       # suite can't "pass" by skipping every data/model-dependent test.
@@ -60,6 +60,11 @@ jobs:
               sys.exit("Missing committed artifacts: " + ", ".join(missing))
           print("All required artifacts present.")
           PY
+
+      # The serving image must carry the library for whichever engine the saved
+      # model uses (the lightgbm-vs-xgboost footgun from before).
+      - name: Verify prod deps match the saved model engine
+        run: python scripts/check_prod_deps.py
 
       - name: Run unit tests
         run: pytest tests/ -v --tb=short
