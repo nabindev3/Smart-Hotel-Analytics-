@@ -61,6 +61,11 @@ jobs:
           print("All required artifacts present.")
           PY
 
+      # The serving image must carry the library for whichever engine the saved
+      # model uses (the lightgbm-vs-xgboost footgun from before).
+      - name: Verify prod deps match the saved model engine
+        run: python scripts/check_prod_deps.py
+
       - name: Run unit tests
         run: pytest tests/ -v --tb=short
 

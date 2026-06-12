@@ -15,6 +15,10 @@ some of these are designed-but-not-done, not just ideas.
 - **Lint the whole repo.** ✅ The ruff gate now covers `backend scripts tests
   frontend src` — cleaning `src/` also caught a real `UnboundLocalError` (a
   shadowing local `mlflow` import in training).
+- **Guard prod deps against the saved engine.** ✅ `scripts/check_prod_deps.py`
+  (run in CI) fails the build if the saved model's engine library isn't
+  importable and listed in `requirements.prod.txt` — the lightgbm footgun can't
+  recur silently.
 
 ## Near term — pay down the known debt
 
@@ -24,9 +28,6 @@ some of these are designed-but-not-done, not just ideas.
   Ordered steps are in `ARTIFACTS.md`. *Status: mechanism done, switch not
   thrown (it breaks the deploy until a store is live, and needs the Render env
   set — neither of which can be done from the codebase alone).*
-- **Derive prod deps from the saved engine.** So that if LightGBM ever wins the
-  bake-off, the production image installs it automatically instead of failing to
-  unpickle. *Status: idea.*
 
 ## Medium term — make the serving real
 
