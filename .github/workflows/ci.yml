@@ -40,6 +40,8 @@ jobs:
           # schema tests; it stays out of requirements.prod.txt so the serving
           # image isn't burdened with it.
           pip install -r requirements.prod.txt pytest pytest-asyncio httpx ruff pandera
+          # Frontend deps (streamlit/plotly) so the dashboard smoke test can run.
+          pip install -r requirements.frontend.txt
           pip install --no-deps -e .
 
       - name: Lint (ruff)
