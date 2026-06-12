@@ -29,11 +29,15 @@ Outputs
   data/data_quality.json  — quality report (missing%, outlier%, drift score)
 """
 
-import os, json, warnings
+import json
+import os
+import warnings
+
 warnings.filterwarnings("ignore")
+from datetime import date, timedelta
+
 import numpy as np
 import pandas as pd
-from datetime import date, timedelta
 
 from src.data_io import write_table
 

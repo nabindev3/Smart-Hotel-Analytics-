@@ -14,10 +14,11 @@ Goal:              Maximise RevPAR subject to market constraints
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass

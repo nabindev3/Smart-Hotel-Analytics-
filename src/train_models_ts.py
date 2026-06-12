@@ -9,7 +9,12 @@ What this does that basic pipelines don't:
   5. Subgroup Metrics
 """
 
-import os, sys, json, time, warnings, argparse
+import argparse
+import json
+import os
+import time
+import warnings
+
 # Scope warning suppression to the known-noisy third-party deprecation/future
 # warnings instead of a blanket ignore. A global filterwarnings("ignore") also
 # hides RuntimeWarnings (divide-by-zero, overflow) and UserWarnings about data
@@ -17,36 +22,41 @@ import os, sys, json, time, warnings, argparse
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import numpy as np
-import pandas as pd
 import joblib
+import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from prophet import Prophet
+import numpy as np
+import pandas as pd
+from lightgbm import LGBMClassifier
 from neuralforecast import NeuralForecast
 from neuralforecast.models import NBEATS
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.metrics import (accuracy_score, roc_auc_score, f1_score,
-                              classification_report, confusion_matrix, brier_score_loss,
-                              precision_recall_curve)
+from prophet import Prophet
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    brier_score_loss,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_recall_curve,
+    roc_auc_score,
+)
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
-from lightgbm import LGBMClassifier
 
 from src.data_io import read_table
 from src.schemas import validate_clean_bookings, validate_raw_bookings
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-BASE     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-D        = lambda f: os.path.join(BASE, "data",       f)
-M        = lambda f: os.path.join(BASE, "models",     f)
-MON      = lambda f: os.path.join(BASE, "monitoring", f)
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def D(f):   return os.path.join(BASE, "data",       f)
+def M(f):   return os.path.join(BASE, "models",     f)
+def MON(f): return os.path.join(BASE, "monitoring", f)
 
 os.makedirs(os.path.join(BASE,"models"),     exist_ok=True)
 os.makedirs(os.path.join(BASE,"monitoring"), exist_ok=True)
@@ -128,7 +138,7 @@ def train_prophet_model(name: str, cfg: dict, train_df: pd.DataFrame, test_df:  
     future = future.merge(full_ext, on="ds", how="left")
     for reg in EXTERNAL_REGS:
         if reg in future.columns: future[reg] = future[reg].ffill().bfill()
-        
+
     forecast = m.predict(future)
     if len(test_df) > 0:
         merged = test_df[["ds","y"]].merge(forecast[["ds","yhat"]], on="ds", how="inner")
@@ -142,7 +152,7 @@ def train_nbeats_model(name: str, train_df: pd.DataFrame, test_df: pd.DataFrame)
     if horizon == 0: return np.nan
     train_nf = train_df[['ds', 'y']].copy()
     train_nf['unique_id'] = name
-    
+
     # Simple N-BEATS configuration
     models = [NBEATS(input_size=max(7, horizon), h=horizon, max_steps=100)]
     try:
@@ -171,13 +181,13 @@ def train_all_prophet(daily: pd.DataFrame, ext: pd.DataFrame, run_id: str) -> di
         df  = _prepare_prophet_df(daily, ext, col)
         for reg in EXTERNAL_REGS:
             if reg in df.columns: df[reg] = _normalise_regressor(df[reg])
-            
+
         train = df[df["ds"] <= TRAIN_CUTOFF].copy()
         test  = df[df["ds"] >  TRAIN_CUTOFF].copy()
 
         model, forecast, mape = train_prophet_model(name, cfg, train, test)
         elapsed = time.time() - t0
-        
+
         # CAVEAT: we persist the full pre-computed forecast alongside the model.
         # This makes the joblib large and, more importantly, the forecast goes
         # stale the moment training finishes — its date range is frozen at
@@ -187,9 +197,9 @@ def train_all_prophet(daily: pd.DataFrame, ext: pd.DataFrame, run_id: str) -> di
         # call model.predict() at request time for the current horizon.
         bundle = {"model":model, "forecast":forecast, "mape":mape, "run_id":run_id, "train_cutoff":TRAIN_CUTOFF, "regressors":EXTERNAL_REGS}
         joblib.dump(bundle, M(f"prophet_{name}.joblib"))
-        
+
         print(f"MAPE={mape:.2%}  [{elapsed:.1f}s]")
-        
+
         # N-BEATS baseline. KNOWN LIMITATION: this is run only for the first
         # target, so the RESULTS.md baseline table is half-empty. Root cause is
         # the PyTorch-Lightning DataLoader spawning multiprocessing workers that
@@ -280,7 +290,7 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
 
     models = {
         "LogisticRegression": LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42),
-        "XGBoost": XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.05, 
+        "XGBoost": XGBClassifier(n_estimators=100, max_depth=5, learning_rate=0.05,
                                  scale_pos_weight=float((y_tr==0).sum()/max((y_tr==1).sum(), 1)),
                                  eval_metric="auc", random_state=42, n_jobs=1),
         "LightGBM": LGBMClassifier(n_estimators=100, max_depth=5, learning_rate=0.05,
@@ -299,7 +309,7 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
         y_proba = clf.predict_proba(X_te_p)[:, 1]
         auc = roc_auc_score(y_te, y_proba)
         brier = brier_score_loss(y_te, y_proba)
-        
+
         results[name] = {"auc": auc, "brier": brier, "model": clf, "proba": y_proba}
         print(f"      AUC: {auc:.3f} | Brier: {brier:.3f}")
         mlflow.log_metric(f"{name}_auc", auc)
@@ -310,7 +320,7 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
             best_model = clf
 
     print(f"    Best baseline model: {best_model_name} (AUC: {best_auc:.3f})")
-    
+
     # Calibration. CalibratedClassifierCV(cv=3) fits the sigmoid on 3 internal
     # folds of the *training* data only; the reliability numbers below are then
     # reported on the single temporal hold-out (see calibration_curve / the
@@ -320,10 +330,10 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     print(f"    Calibrating {best_model_name}...")
     calibrated = CalibratedClassifierCV(estimator=best_model, method='sigmoid', cv=3)
     calibrated.fit(X_tr_p, y_tr)
-    
+
     y_proba_cal = calibrated.predict_proba(X_te_p)[:, 1]
     y_pred_cal = calibrated.predict(X_te_p)
-    
+
     auc_cal = roc_auc_score(y_te, y_proba_cal)
     brier_cal = brier_score_loss(y_te, y_proba_cal)
     f1_cal = f1_score(y_te, y_pred_cal)
@@ -344,7 +354,7 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     # Reliability Diagram
     prob_true, prob_pred = calibration_curve(y_te, y_proba_cal, n_bins=10)
     uncal_true, uncal_pred = calibration_curve(y_te, results[best_model_name]["proba"], n_bins=10)
-    
+
     plt.figure(figsize=(8, 8))
     plt.plot([0, 1], [0, 1], "k:", label="Perfectly calibrated")
     plt.plot(prob_pred, prob_true, "s-", label=f"{best_model_name} (Calibrated)")
@@ -361,13 +371,13 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     subgroups = {}
     df_te["y_true"] = y_te.values
     df_te["y_proba"] = y_proba_cal
-    
+
     print("    Subgroup Metrics (Hotel):")
     h_metrics = {}
     for h in df_te["hotel"].unique():
         sub = df_te[df_te["hotel"] == h]
         if len(sub['y_true'].unique()) > 1:
-            h_metrics[h] = {"auc": roc_auc_score(sub["y_true"], sub["y_proba"]), 
+            h_metrics[h] = {"auc": roc_auc_score(sub["y_true"], sub["y_proba"]),
                             "brier": brier_score_loss(sub["y_true"], sub["y_proba"])}
             print(f"      {h}: AUC={h_metrics[h]['auc']:.3f}")
     subgroups["hotel"] = h_metrics
@@ -378,7 +388,7 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     for c in top_countries:
         sub = df_te[df_te["country"] == c]
         if len(sub['y_true'].unique()) > 1:
-            c_metrics[c] = {"auc": roc_auc_score(sub["y_true"], sub["y_proba"]), 
+            c_metrics[c] = {"auc": roc_auc_score(sub["y_true"], sub["y_proba"]),
                             "brier": brier_score_loss(sub["y_true"], sub["y_proba"])}
             print(f"      {c}: AUC={c_metrics[c]['auc']:.3f}")
     subgroups["country"] = c_metrics
@@ -388,7 +398,7 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
     for s in df_te["arrival_date_month"].unique():
         sub = df_te[df_te["arrival_date_month"] == s]
         if len(sub['y_true'].unique()) > 1:
-            s_metrics[s] = {"auc": roc_auc_score(sub["y_true"], sub["y_proba"]), 
+            s_metrics[s] = {"auc": roc_auc_score(sub["y_true"], sub["y_proba"]),
                             "brier": brier_score_loss(sub["y_true"], sub["y_proba"])}
     subgroups["season"] = s_metrics
 
@@ -473,7 +483,7 @@ def generate_results_md(ts_results: dict, ml_res: dict):
     ]
     for m, auc in ml_res["baselines"].items():
         md.append(f"| {m} | {auc:.3f} |")
-    
+
     md += [
         "",
         "## 2. Calibration Analysis",
@@ -490,15 +500,15 @@ def generate_results_md(ts_results: dict, ml_res: dict):
     ]
     for h, m in ml_res["subgroups"]["hotel"].items():
         md.append(f"- **{h}:** AUC={m['auc']:.3f}, Brier={m['brier']:.3f}")
-        
+
     md.append("### By Top 5 Countries")
     for c, m in ml_res["subgroups"]["country"].items():
         md.append(f"- **{c}:** AUC={m['auc']:.3f}, Brier={m['brier']:.3f}")
-        
+
     md.append("### By Season (Month)")
     for s, m in ml_res["subgroups"]["season"].items():
         md.append(f"- **{s}:** AUC={m['auc']:.3f}, Brier={m['brier']:.3f}")
-        
+
     md += [
         "",
         "## 4. Confusion Matrix (Holdout)",
@@ -516,7 +526,7 @@ def generate_results_md(ts_results: dict, ml_res: dict):
     for name, r in ts_results.items():
         nbeats_m = f"{r['nbeats_mape']:.2%}" if not pd.isna(r['nbeats_mape']) else "N/A"
         md.append(f"| {name} | {r['mape']:.2%} | {nbeats_m} |")
-        
+
     with open(os.path.join(BASE, "RESULTS.md"), "w") as f:
         f.write("\n".join(md))
 
@@ -532,7 +542,7 @@ def generate_results_md(ts_results: dict, ml_res: dict):
 # MAIN TRAINING ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════
 def run_training(force: bool = False) -> str:
-    quality = check_data_quality(min_grade="C")
+    check_data_quality(min_grade="C")  # gate: raises if data quality is below grade C
 
     if not force:
         drift = check_drift()
@@ -544,7 +554,7 @@ def run_training(force: bool = False) -> str:
 
     with mlflow.start_run(run_name=f"train_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}") as run:
         run_id = run.info.run_id
-        
+
         print("\n[1/3] Prophet & N-BEATS Models …")
         daily = read_table(D("daily_kpis.csv"), parse_dates=["ds"])
         ext   = read_table(D("external_regs.csv"), parse_dates=["ds"])

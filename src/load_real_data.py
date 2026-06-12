@@ -29,11 +29,11 @@ Reference:
 """
 
 from __future__ import annotations
-import os
-import sys
-import json
+
 import argparse
-from io import BytesIO, StringIO
+import json
+import os
+from io import StringIO
 from pathlib import Path
 
 import numpy as np
@@ -67,7 +67,7 @@ def _try_tidytuesday() -> pd.DataFrame | None:
     """Public no-auth mirror. Most reliable."""
     try:
         import requests
-        print(f"[load_real_data] Fetching from TidyTuesday mirror …")
+        print("[load_real_data] Fetching from TidyTuesday mirror …")
         r = requests.get(TIDYTUESDAY_URL, timeout=60)
         r.raise_for_status()
         df = pd.read_csv(StringIO(r.text))

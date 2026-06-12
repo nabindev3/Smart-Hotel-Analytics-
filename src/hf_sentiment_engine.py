@@ -34,9 +34,14 @@ Fallback chain
 
 from __future__ import annotations
 
-import os, json, re, time, hashlib, logging
-from typing import Optional
+import hashlib
+import json
+import logging
+import os
+import time
 from pathlib import Path
+from typing import Optional
+
 import requests
 
 logger = logging.getLogger(__name__)

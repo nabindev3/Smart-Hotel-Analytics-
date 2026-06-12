@@ -12,14 +12,17 @@ This is standard scientific methodology for ablation in ML papers.
 """
 
 from __future__ import annotations
-import os, json, warnings, itertools
+
+import json
+import os
+import warnings
+
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 from prophet import Prophet
-import joblib
+from scipy import stats
 
 EXTERNAL_REGS = [
     "temperature_c", "precipitation_mm", "local_events",
@@ -155,7 +158,7 @@ def run_ablation(
             "significant_p05":    significant,
             "interpretation":     (
                 f"Removing '{reg}' {'degrades' if mape_delta>0 else 'improves'} MAPE "
-                f"by {abs(mape_delta_pct := mape_delta/baseline_mape*100):.1f}% "
+                f"by {abs(mape_delta/baseline_mape*100):.1f}% "
                 f"({'**significant**' if significant else 'NOT significant'} at p<0.05, "
                 f"p={p_val:.4f})."
             ),

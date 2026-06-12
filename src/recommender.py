@@ -41,14 +41,15 @@ Services modelled:
 """
 
 from __future__ import annotations
-import numpy as np
-import pandas as pd
+
 from dataclasses import dataclass
 from typing import Optional
+
+import joblib
+import numpy as np
+import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import MinMaxScaler
-import joblib, os
-
 
 SERVICES = [
     "spa_treatment", "family_package", "airport_transfer",

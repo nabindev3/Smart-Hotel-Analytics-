@@ -5,9 +5,16 @@ Tier 2: Anthropic Claude API
 Tier 3: TextBlob
 """
 from __future__ import annotations
-import os, json, re, time, hashlib, logging
-from typing import Optional
+
+import hashlib
+import json
+import logging
+import os
+import re
+import time
 from pathlib import Path
+from typing import Optional
+
 import pandas as pd
 from textblob import TextBlob
 

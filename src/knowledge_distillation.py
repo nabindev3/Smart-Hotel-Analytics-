@@ -23,8 +23,13 @@ Usage
   python src/knowledge_distillation.py --generate --n 500 --finetune
 """
 
-import os, json, time, argparse, random
+import argparse
+import json
+import os
+import random
+import time
 from pathlib import Path
+
 import pandas as pd
 
 try:
@@ -157,13 +162,17 @@ def finetune_student(
     Requires: transformers, torch, datasets
     """
     try:
-        from transformers import (
-            AutoTokenizer, AutoModelForSequenceClassification,
-            TrainingArguments, Trainer, DataCollatorWithPadding,
-        )
+        # transformers pulls in torch; if torch is missing this import raises
+        # ImportError and is caught below, so no separate torch probe is needed.
         from datasets import Dataset
-        import torch
         from sklearn.metrics import accuracy_score, f1_score
+        from transformers import (
+            AutoModelForSequenceClassification,
+            AutoTokenizer,
+            DataCollatorWithPadding,
+            Trainer,
+            TrainingArguments,
+        )
     except ImportError as e:
         print(f"Missing: {e}")
         print("Install: pip install transformers torch datasets")
