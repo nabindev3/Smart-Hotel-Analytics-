@@ -411,9 +411,10 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
 
     # Register the pipeline in the MLflow Model Registry so serving can load a
     # promoted version instead of a raw path (see backend/registry.py). Best
-    # effort — a registry hiccup must never fail a training run.
+    # effort — a registry hiccup must never fail a training run. (mlflow.sklearn
+    # is imported at module scope; re-importing it here would shadow the global
+    # `mlflow` and make the earlier mlflow.log_metric calls UnboundLocalError.)
     try:
-        import mlflow.sklearn
         mlflow.sklearn.log_model(pipe, name="cancellation_model",
                                  registered_model_name="hotel_cancellation")
         print("    Registered model 'hotel_cancellation' in the MLflow registry.")
