@@ -62,6 +62,29 @@ FEATURES = [
     "required_car_parking_spaces","total_of_special_requests","adr",
 ]
 
+# Allowed values for the categorical inputs — the single source of truth the
+# frontend dropdowns read from (GET /schema), so the UI can't drift out of sync
+# with what the model expects. The model itself tolerates unseen categories
+# (OneHotEncoder handle_unknown="ignore"); these are the curated, sensible options.
+SCHEMA_FIELDS = {
+    "hotel":                ["Resort Hotel", "City Hotel"],
+    "arrival_date_month":   ["January", "February", "March", "April", "May", "June",
+                             "July", "August", "September", "October", "November", "December"],
+    "meal":                 ["BB", "HB", "FB", "SC", "Undefined"],
+    "market_segment":       ["Online TA", "Direct", "Corporate", "Offline TA/TO",
+                             "Groups", "Complementary", "Aviation"],
+    "distribution_channel": ["TA/TO", "Direct", "Corporate", "GDS", "Undefined"],
+    "reserved_room_type":   ["A", "B", "C", "D", "E", "F", "G", "H", "L", "P"],
+    "deposit_type":         ["No Deposit", "Non Refund", "Refundable"],
+    "customer_type":        ["Transient", "Contract", "Transient-Party", "Group"],
+}
+
+
+@router.get("/schema")
+def cancellation_schema():
+    """Categorical form options for the cancellation/recommender UIs (item 10)."""
+    return {"fields": SCHEMA_FIELDS}
+
 @router.post("/predict")
 def predict_cancellation(booking: BookingInput):
     model     = _load_cancel_model()
