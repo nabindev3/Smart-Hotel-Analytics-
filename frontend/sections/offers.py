@@ -33,7 +33,7 @@ def render() -> None:
                                   format_func=lambda x: "Yes" if x else "No")
             g_prev = st.number_input("Past completed stays", 0, 50, 2, key="rec_pv")
             g_spec = st.number_input("Special requests", 0, 5, 2, key="rec_sp")
-            st.slider("How many offers to show?", 1, 5, 3, key="rec_n")
+            top_n  = st.slider("How many offers to show?", 1, 5, 3, key="rec_n")
         rec_submit = st.form_submit_button("Get offers")
 
     if not rec_submit:
@@ -47,7 +47,8 @@ def render() -> None:
         "total_of_special_requests": g_spec, "market_segment": g_seg,
     }
     with st.spinner("Generating offers…"):
-        result, err = api_post("/api/v1/recommend/next-action", body, timeout=30)
+        result, err = api_post("/api/v1/recommend/next-action", body,
+                               params={"top_n": top_n}, timeout=30)
     if err:
         st.error(err)
         return

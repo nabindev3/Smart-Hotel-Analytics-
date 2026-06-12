@@ -48,8 +48,8 @@ def api_get(path, params=None, timeout=60):
     return _request_with_retry("GET", f"{API_BASE}{path}", params=params, timeout=timeout)
 
 
-def api_post(path, body, timeout=60):
-    return _request_with_retry("POST", f"{API_BASE}{path}", json=body, timeout=timeout)
+def api_post(path, body, params=None, timeout=60):
+    return _request_with_retry("POST", f"{API_BASE}{path}", json=body, params=params, timeout=timeout)
 
 
 # Categorical form options come from the backend so the dropdowns stay in lockstep
