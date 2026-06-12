@@ -1,0 +1,85 @@
+/* Smart Hotel Analytics — dashboard theme.
+   Loaded once by theme.load_css(); keep all static styling here rather than in
+   inline unsafe_allow_html blocks. Dynamic, value-dependent styling lives in
+   ui.py component helpers (which escape any free text). */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+html, body, .stApp { background:#07090D !important; color:#C5C5BF !important; }
+.stApp { font-family:'DM Sans', sans-serif; }
+
+section[data-testid="stSidebar"] {
+  background:linear-gradient(180deg,#0C0E16,#07090D) !important;
+  border-right:1px solid rgba(196,155,60,.12);
+}
+section[data-testid="stSidebar"] * { color:#C5C5BF !important; }
+
+h1 {
+  font-family:'Cormorant Garamond', serif !important; font-size:2.6rem !important;
+  color:#EDD98A !important; font-weight:600 !important; letter-spacing:.04em;
+}
+h2, h3 { font-family:'Cormorant Garamond', serif !important; color:#EDD98A !important; }
+
+.tagline {
+  color:#BF9740; font-style:italic; font-family:'Cormorant Garamond', serif;
+  font-size:1.05rem; border-left:3px solid #BF9740; padding:.45rem 1rem;
+  background:rgba(191,151,64,.06); border-radius:0 8px 8px 0; margin:0 0 1.4rem;
+}
+
+.gold-rule {
+  height:1px; background:linear-gradient(90deg,transparent,#BF9740 30%,#BF9740 70%,transparent);
+  margin:1.2rem 0; border:none;
+}
+
+.help-box {
+  background:rgba(58,123,213,.06); border-left:3px solid #3A7BD5;
+  border-radius:0 6px 6px 0; padding:.55rem .9rem; margin:.4rem 0 1rem;
+  color:#A8B5C8; font-size:.82rem; line-height:1.55;
+}
+
+.action-card {
+  background:rgba(14,16,24,.92); border:1px solid rgba(196,155,60,.18);
+  border-radius:10px; padding:.85rem 1rem; margin:.4rem 0;
+}
+
+.alert-warning { background:rgba(255,193,7,.08);  border-left:4px solid #FFC107; border-radius:0 8px 8px 0; padding:.6rem .9rem; margin:.4rem 0; }
+.alert-good    { background:rgba(76,175,80,.08);  border-left:4px solid #4CAF50; border-radius:0 8px 8px 0; padding:.6rem .9rem; margin:.4rem 0; }
+.alert-info    { background:rgba(58,123,213,.08); border-left:4px solid #3A7BD5; border-radius:0 8px 8px 0; padding:.6rem .9rem; margin:.4rem 0; }
+
+/* The metric card with trend arrow (see ui.metric_card). */
+.metric-card {
+  background:linear-gradient(135deg,rgba(14,16,24,.95),rgba(10,12,19,.98));
+  border:1px solid rgba(196,155,60,.18); border-radius:12px;
+  padding:1.1rem; box-shadow:0 4px 20px rgba(0,0,0,.5);
+}
+.metric-card .mc-label { color:#767670; font-size:.67rem; letter-spacing:.14em; text-transform:uppercase; }
+.metric-card .mc-value { color:#EDD98A; font-family:'Cormorant Garamond', serif; font-size:1.85rem; }
+.metric-card .mc-trend { font-size:.7rem; }
+
+div[data-testid="metric-container"] {
+  background:linear-gradient(135deg,rgba(14,16,24,.95),rgba(10,12,19,.98)) !important;
+  border:1px solid rgba(196,155,60,.18) !important; border-radius:12px !important;
+  padding:1.1rem !important; box-shadow:0 4px 20px rgba(0,0,0,.5) !important;
+}
+div[data-testid="metric-container"] label { color:#767670 !important; font-size:.67rem !important; letter-spacing:.14em !important; text-transform:uppercase; }
+div[data-testid="metric-container"] [data-testid="stMetricValue"] { color:#EDD98A !important; font-family:'Cormorant Garamond', serif !important; font-size:1.85rem !important; }
+
+.stTabs [data-baseweb="tab-list"] { background:#0C0E16; border-bottom:1px solid rgba(196,155,60,.12); }
+.stTabs [data-baseweb="tab"] { color:#767670 !important; background:transparent; border:none; font-size:.79rem; letter-spacing:.05em; padding:.55rem 1.1rem; }
+.stTabs [aria-selected="true"] { color:#EDD98A !important; border-bottom:2px solid #BF9740 !important; }
+
+.stSelectbox > div > div, .stNumberInput > div > div > input, .stTextInput > div > div > input {
+  background:#111320 !important; color:#C5C5BF !important;
+  border:1px solid rgba(196,155,60,.18) !important; border-radius:8px !important;
+}
+label { color:#767670 !important; font-size:.74rem !important; letter-spacing:.05em !important; }
+
+.stButton > button {
+  background:linear-gradient(135deg,#BF9740,#8C6A20) !important; color:#07090D !important;
+  border:none !important; border-radius:40px !important; padding:.55rem 1.8rem !important;
+  font-weight:500 !important; letter-spacing:.08em !important; text-transform:uppercase !important;
+  font-size:.78rem !important; box-shadow:0 4px 16px rgba(191,151,64,.22) !important;
+}
+
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-thumb { background:#BF9740; border-radius:2px; }
