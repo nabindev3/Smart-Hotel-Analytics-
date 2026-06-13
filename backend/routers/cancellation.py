@@ -7,7 +7,7 @@ from functools import lru_cache
 import joblib
 import pandas as pd
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
@@ -33,24 +33,26 @@ def _load_threshold() -> float:
     return 0.5
 
 class BookingInput(BaseModel):
+    # Bounds mirror the cleaning rules in src/train_models_ts.py, so the API
+    # rejects negatives / absurd values up front instead of silently scoring them.
     hotel:                          str   = "Resort Hotel"
-    lead_time:                      int   = 30
+    lead_time:                      int   = Field(30, ge=0, le=700)
     arrival_date_month:             str   = "July"
-    total_stay:                     int   = 3
-    total_guests:                   int   = 2
+    total_stay:                     int   = Field(3, ge=0, le=60)
+    total_guests:                   int   = Field(2, ge=1, le=20)
     meal:                           str   = "BB"
-    country:                        str   = "PRT"
+    country:                        str   = Field("PRT", max_length=8)
     market_segment:                 str   = "Online TA"
     distribution_channel:           str   = "TA/TO"
-    is_repeated_guest:              int   = 0
-    previous_cancellations:         int   = 0
-    previous_bookings_not_canceled: int   = 0
+    is_repeated_guest:              int   = Field(0, ge=0, le=1)
+    previous_cancellations:         int   = Field(0, ge=0, le=100)
+    previous_bookings_not_canceled: int   = Field(0, ge=0, le=200)
     reserved_room_type:             str   = "A"
     deposit_type:                   str   = "No Deposit"
     customer_type:                  str   = "Transient"
-    required_car_parking_spaces:    int   = 0
-    total_of_special_requests:      int   = 1
-    adr:                            float = 120.0
+    required_car_parking_spaces:    int   = Field(0, ge=0, le=10)
+    total_of_special_requests:      int   = Field(1, ge=0, le=10)
+    adr:                            float = Field(120.0, ge=0, le=5000)
 
 # Must match the training schema in src/train_models_ts.py (the leakage columns
 # booking_changes and days_in_waiting_list are intentionally excluded there).

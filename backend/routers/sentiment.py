@@ -3,7 +3,7 @@ import os
 from typing import List
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.hf_sentiment_engine import MODELS as HF_MODELS
@@ -11,11 +11,15 @@ from src.sentiment_engine import CLAUDE_MODEL, analyse, analyse_batch, get_activ
 
 router = APIRouter()
 
+# Cap free text so an oversized payload can't be forwarded to the paid
+# HuggingFace/Claude tiers (cost + abuse guard).
+_MAX_TEXT = 5000
+
 class ReviewText(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1, max_length=_MAX_TEXT)
 
 class BatchReviews(BaseModel):
-    reviews: List[str]
+    reviews: List[str] = Field(..., max_length=200)
 
 @router.get("/engine-info")
 def engine_info():
