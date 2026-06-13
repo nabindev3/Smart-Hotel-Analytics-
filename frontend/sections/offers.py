@@ -6,7 +6,7 @@ from html import escape as esc
 import streamlit as st
 from api import api_post, get_schema
 from theme import GOLD, LOYALTY_COLORS
-from ui import help_box, render_card
+from ui import clean_country, help_box, render_card
 
 
 def render() -> None:
@@ -41,7 +41,7 @@ def render() -> None:
 
     body = {
         "hotel": g_hotel, "adr": g_adr, "adults": g_adults, "children": float(g_children),
-        "babies": 0, "total_stay": g_stay, "country": g_country.upper()[:3],
+        "babies": 0, "total_stay": g_stay, "country": clean_country(g_country),
         "meal": g_meal, "is_repeated_guest": g_rep,
         "previous_bookings_not_canceled": g_prev,
         "total_of_special_requests": g_spec, "market_segment": g_seg,

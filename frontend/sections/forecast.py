@@ -56,7 +56,10 @@ def render() -> None:
         fig.add_vline(x=vline_x, line_dash="dash", line_color="rgba(196,155,60,.4)",
                       annotation_text="Today", annotation_font_color=GOLD)
 
-    accuracy = (1 - data.get("mape", 0)) * 100 if data.get("mape") else None
+    # Accuracy = 1 - MAPE, clamped to [0, 100] so a MAPE > 1 (possible on noisy
+    # series) can't render a nonsensical negative "accuracy".
+    mape = data.get("mape")
+    accuracy = max(0.0, min(1 - mape, 1.0)) * 100 if mape else None
     title = f"{metric_choice} — next {horizon} days"
     if accuracy is not None:
         title += f"  (forecast accuracy on past data: {accuracy:.1f}%)"

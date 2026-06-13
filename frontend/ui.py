@@ -23,6 +23,15 @@ def help_box(text: str) -> None:
     st.markdown(f"<div class='help-box'>💡 {esc(str(text))}</div>", unsafe_allow_html=True)
 
 
+def clean_country(raw: str) -> str:
+    """Normalise a country code to 3 upper-case letters, warning the user when
+    the input clearly isn't a valid code instead of silently garbling it."""
+    cc = (raw or "").strip().upper()[:3]
+    if len(cc) != 3 or not cc.isalpha():
+        st.warning(f"Country should be a 3-letter code (e.g. GBR, USA). Using '{cc or '—'}'.")
+    return cc
+
+
 def trend_arrow(trend: dict | None) -> str:
     """{direction, delta_pct} → a coloured arrow span (safe HTML, numbers only)."""
     if not trend:
