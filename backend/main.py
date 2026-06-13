@@ -36,6 +36,7 @@ from backend.routers import (
     xai,
 )
 
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("hotel_api")
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ def _warm_models():
     if failed:
         logger.warning("Model warm-up finished with failures: %s", ", ".join(failed))
     else:
-        print("✅  All models loaded.")
+        logger.info("All models loaded.")
     _WARMUP_DONE.set()
 
 @asynccontextmanager
@@ -90,10 +91,10 @@ async def lifespan(app: FastAPI):
     # On Render's free tier, blocking startup on heavy model loads
     # (Prophet + SHAP) can exceed the proxy timeout and surface as 502.
     # Router-level @lru_cache loaders make lazy first-call loading safe.
-    print("🏨  Starting; warming models in background…")
+    logger.info("Starting; warming models in background…")
     threading.Thread(target=_warm_models, daemon=True).start()
     yield
-    print("🏨  Shutting down.")
+    logger.info("Shutting down.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -184,6 +185,18 @@ def health():
             "models":    models,
         },
         status_code=code,
+    )
+
+@app.exception_handler(FileNotFoundError)
+async def model_not_available(request: Request, exc):
+    # A missing model/data artifact (e.g. joblib.load on an untrained model) is a
+    # "not ready" condition, not a server bug — surface a clear 503 instead of a
+    # 500 with a leaked path.
+    logger.warning("Artifact not available on %s %s: %s",
+                   request.method, request.url.path, exc)
+    return JSONResponse(
+        {"error": "model or data not available — has training run?"},
+        status_code=503,
     )
 
 @app.exception_handler(404)
