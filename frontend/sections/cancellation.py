@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from api import api_post, get_schema
 from theme import AMBER, GREEN, RED, gold_rule, themed_figure
-from ui import help_box, render_card
+from ui import clean_country, help_box, render_card
 
 # Human-readable labels for coded values. The *values* come from the backend
 # schema (item 10); these are presentation only and degrade gracefully via .get.
@@ -62,7 +62,7 @@ def render() -> None:
     body = {
         "hotel": hotel, "lead_time": lead, "arrival_date_month": month,
         "total_stay": wknd + wkk, "total_guests": adults + children,
-        "meal": meal, "country": country.upper()[:3],
+        "meal": meal, "country": clean_country(country),
         "market_segment": seg, "distribution_channel": chan,
         "is_repeated_guest": is_rep, "previous_cancellations": prev_can,
         "previous_bookings_not_canceled": prev_ok,

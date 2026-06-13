@@ -80,3 +80,20 @@ deploy. The mechanism is in; the flip is a documented, ordered step
 - **Stop gold-plating comments.** Some of my early comments explain the obvious.
   The ones worth keeping say *why* (the leakage rationale, the walk-risk
   fallback); the ones narrating *what* the next line does are noise.
+
+## SHAP on the calibrated model (found broken, then fixed)
+
+The XAI endpoints were silently 503-ing. The served model is
+`CalibratedClassifierCV(XGBoost)`, and SHAP's `TreeExplainer` rejects the
+calibration wrapper; unwrapping to the base `XGBClassifier` then hits a separate
+shap-vs-xgboost bug (`base_score` serialized as `'[0.5]'`, which shap's tree
+loader can't parse). A caching change I made surfaced it — the endpoint had
+always been broken since calibration was added, just never hit in a test.
+
+**Fix:** explain the *served, calibrated* model directly with the modern
+model-agnostic `shap.Explainer` (permutation) over its class-1 probability,
+against a representative background sample. This sidesteps the tree-parsing path
+entirely and is arguably more correct (it explains the calibrated output the API
+actually returns). A 400-day-lead booking now reads `lead_time` as the top
+risk-up driver, as expected. **Lesson:** "it returns 200 in the demo" isn't
+coverage — an endpoint nobody asserted on had been dead for a while.

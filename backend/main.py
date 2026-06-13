@@ -16,7 +16,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -36,6 +36,7 @@ from backend.routers import (
     xai,
 )
 
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("hotel_api")
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ def _warm_models():
     if failed:
         logger.warning("Model warm-up finished with failures: %s", ", ".join(failed))
     else:
-        print("✅  All models loaded.")
+        logger.info("All models loaded.")
     _WARMUP_DONE.set()
 
 @asynccontextmanager
@@ -90,51 +91,72 @@ async def lifespan(app: FastAPI):
     # On Render's free tier, blocking startup on heavy model loads
     # (Prophet + SHAP) can exceed the proxy timeout and surface as 502.
     # Router-level @lru_cache loaders make lazy first-call loading safe.
-    print("🏨  Starting; warming models in background…")
+    logger.info("Starting; warming models in background…")
     threading.Thread(target=_warm_models, daemon=True).start()
     yield
-    print("🏨  Shutting down.")
+    logger.info("Shutting down.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  App
 # ─────────────────────────────────────────────────────────────────────────────
+VERSION = "2.0.0"   # single source — referenced by the app, root, and /health
+
 app = FastAPI(
     title       = "Smart Hotel Analytics API",
     description = (
-        "Production ML microservice for hotel revenue management.\n\n"
+        "ML microservice for hotel revenue management.\n\n"
         "Endpoints: forecasting · cancellation risk · dynamic pricing · "
-        "LP overbooking · guest recommender · XAI (SHAP) · sentiment NLP."
+        "overbooking · guest recommender · XAI (SHAP) · sentiment NLP."
     ),
-    version  = "2.0.0",
+    version  = VERSION,
     docs_url = "/docs",
     lifespan = lifespan,
 )
 
 # ── Middleware ────────────────────────────────────────────────────────────────
+# Lock CORS to the frontend origin(s) via CORS_ORIGINS (comma-separated). Defaults
+# to "*" so local dev / the demo keep working, but a real deploy should set it to
+# the dashboard's origin. Only the methods the API actually uses are allowed.
+_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins  = ["*"],     # restrict in prod
-    allow_methods  = ["*"],
-    allow_headers  = ["*"],
+    allow_origins   = _origins or ["*"],
+    allow_credentials = bool(_origins),     # credentials can't be combined with "*"
+    allow_methods   = ["GET", "POST", "OPTIONS"],
+    allow_headers   = ["*"],
 )
 
+# ── Optional API-key auth ─────────────────────────────────────────────────────
+# When API_KEY is set, every /api/v1/* route requires a matching X-API-Key header
+# (the paid sentiment/XAI endpoints especially shouldn't be open). Unset → no auth,
+# so the local demo keeps working. /health, /, and /docs stay public.
+API_KEY = os.environ.get("API_KEY", "")
+
+
+def require_api_key(x_api_key: str = Header(default="")):
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="invalid or missing API key")
+
+
+_auth = [Depends(require_api_key)]
+
 # ── Routers ──────────────────────────────────────────────────────────────────
-app.include_router(forecast.router,     prefix="/api/v1/forecast",    tags=["Forecasting"])
-app.include_router(cancellation.router, prefix="/api/v1/cancellation",tags=["Cancellation"])
-app.include_router(pricing.router,      prefix="/api/v1/pricing",     tags=["Pricing"])
-app.include_router(overbooking.router,  prefix="/api/v1/overbooking", tags=["Overbooking"])
-app.include_router(recommender.router,  prefix="/api/v1/recommend",   tags=["Recommender"])
-app.include_router(sentiment.router,    prefix="/api/v1/sentiment",   tags=["Sentiment"])
-app.include_router(xai.router,          prefix="/api/v1/xai",         tags=["XAI"])
-app.include_router(briefing.router,     prefix="/api/v1/briefing",    tags=["Briefing"])
-app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Analytics"])
+app.include_router(forecast.router,     prefix="/api/v1/forecast",    tags=["Forecasting"], dependencies=_auth)
+app.include_router(cancellation.router, prefix="/api/v1/cancellation",tags=["Cancellation"], dependencies=_auth)
+app.include_router(pricing.router,      prefix="/api/v1/pricing",     tags=["Pricing"],      dependencies=_auth)
+app.include_router(overbooking.router,  prefix="/api/v1/overbooking", tags=["Overbooking"],  dependencies=_auth)
+app.include_router(recommender.router,  prefix="/api/v1/recommend",   tags=["Recommender"],  dependencies=_auth)
+app.include_router(sentiment.router,    prefix="/api/v1/sentiment",   tags=["Sentiment"],    dependencies=_auth)
+app.include_router(xai.router,          prefix="/api/v1/xai",         tags=["XAI"],          dependencies=_auth)
+app.include_router(briefing.router,     prefix="/api/v1/briefing",    tags=["Briefing"],     dependencies=_auth)
+app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Analytics"],    dependencies=_auth)
 
 # ── Health & root ────────────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])
 def root():
-    return {"service": "Smart Hotel Analytics API", "version": "2.0.0", "status": "ok"}
+    return {"service": "Smart Hotel Analytics API", "version": VERSION, "status": "ok"}
 
 @app.get("/health", tags=["Health"])
 def health():
@@ -177,6 +199,18 @@ def health():
             "models":    models,
         },
         status_code=code,
+    )
+
+@app.exception_handler(FileNotFoundError)
+async def model_not_available(request: Request, exc):
+    # A missing model/data artifact (e.g. joblib.load on an untrained model) is a
+    # "not ready" condition, not a server bug — surface a clear 503 instead of a
+    # 500 with a leaked path.
+    logger.warning("Artifact not available on %s %s: %s",
+                   request.method, request.url.path, exc)
+    return JSONResponse(
+        {"error": "model or data not available — has training run?"},
+        status_code=503,
     )
 
 @app.exception_handler(404)

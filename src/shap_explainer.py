@@ -48,7 +48,7 @@ class CancellationExplainer:
         pipeline = model if model is not None else joblib.load(model_path)
         self.preprocessor = pipeline.named_steps["preprocessor"]
         self.clf           = pipeline.named_steps["classifier"]
-        self._explainer:   Optional[shap.TreeExplainer] = None
+        self._explainer:   Optional[shap.Explainer] = None
         self._feature_names: list[str] = []
 
     def _get_feature_names(self) -> list[str]:
@@ -65,45 +65,39 @@ class CancellationExplainer:
             self._feature_names = [f"feature_{i}" for i in range(n)]
         return self._feature_names
 
-    def _build_explainer(self, X_transformed: np.ndarray):
+    def _build_explainer(self, background: np.ndarray):
+        # TreeExplainer can't explain a CalibratedClassifierCV wrapper (and the
+        # unwrapped XGBoost trips a shap/xgboost base_score parse bug), so we
+        # explain the *served, calibrated* model directly with the modern
+        # model-agnostic Explainer over its class-1 probability. `background`
+        # should be a representative sample, not the row(s) being explained.
         if self._explainer is None:
-            # Subsample background for efficiency
-            bg = shap.sample(X_transformed, min(100, len(X_transformed)))
-            self._explainer = shap.TreeExplainer(
-                self.clf,
-                data=bg,
-                feature_perturbation="interventional",
-            )
+            bg = shap.sample(background, min(100, len(background)), random_state=0)
+            self._explainer = shap.Explainer(
+                lambda d: self.clf.predict_proba(d)[:, 1], bg)
 
-    def explain_global(
-        self,
-        X_raw: pd.DataFrame,
-        n_samples: int = 500,
-    ) -> dict:
-        """
-        Compute global SHAP values on a sample.
-        Returns dict suitable for JSON serialisation and Plotly charts.
-        """
-        X_raw = X_raw.copy()
-        for col in ["children","adr","meal","country"]:
-            if col in X_raw.columns:
-                if X_raw[col].dtype in ["float64","int64","float32"]:
-                    X_raw[col] = X_raw[col].fillna(X_raw[col].median())
-                else:
-                    X_raw[col] = X_raw[col].fillna(X_raw[col].mode()[0]
-                                                   if len(X_raw[col].mode())>0 else "BB")
+    @staticmethod
+    def _fillna(df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        for col in ["children", "adr", "meal", "country"]:
+            if col not in df.columns:
+                continue
+            if df[col].dtype in ["float64", "int64", "float32"]:
+                df[col] = df[col].fillna(df[col].median() if df[col].notna().any() else 0)
+            else:
+                mode = df[col].mode()
+                df[col] = df[col].fillna(mode[0] if len(mode) else "BB")
+        return df
 
-        sample = X_raw.sample(min(n_samples, len(X_raw)), random_state=42)
-        X_t    = self.preprocessor.transform(sample)
+    def explain_global(self, X_raw: pd.DataFrame, n_samples: int = 500) -> dict:
+        """Compute global SHAP values on a sample (JSON-serialisable)."""
+        sample = self._fillna(X_raw).sample(min(n_samples, len(X_raw)), random_state=42)
+        X_t = self.preprocessor.transform(sample)
 
         self._build_explainer(X_t)
-        shap_vals = self._explainer.shap_values(X_t)
-
-        # For binary classifiers shap_values returns list[2] or 2D array
-        if isinstance(shap_vals, list):
-            sv = shap_vals[1]   # class 1 = Canceled
-        else:
-            sv = shap_vals
+        exp = self._explainer(X_t)
+        sv = np.asarray(exp.values)              # (n, dims) — single class-1 output
+        base = float(np.mean(exp.base_values))
 
         names     = self._get_feature_names()
         mean_abs  = np.abs(sv).mean(axis=0)
@@ -113,38 +107,25 @@ class CancellationExplainer:
             "feature_names":  [names[i] if i < len(names) else f"f{i}" for i in top20_idx],
             "mean_abs_shap":  [round(float(mean_abs[i]), 5) for i in top20_idx],
             "shap_matrix":    sv[:, top20_idx].tolist(),
-            "base_value":     float(self._explainer.expected_value[1]
-                                    if isinstance(self._explainer.expected_value, (list,np.ndarray))
-                                    else self._explainer.expected_value),
+            "base_value":     round(base, 5),
             "n_samples":      len(sample),
         }
 
-    def explain_instance(self, X_raw_row: pd.DataFrame) -> dict:
-        """
-        SHAP waterfall explanation for a single booking.
-        Returns top contributing features with direction and magnitude.
-        """
-        row = X_raw_row.copy()
-        for col in ["children","adr","meal","country"]:
-            if col in row.columns:
-                if row[col].dtype in ["float64","int64","float32"]:
-                    row[col] = row[col].fillna(row[col].median() if row[col].notna().any() else 0)
-                else:
-                    row[col] = row[col].fillna("BB" if col=="meal" else "PRT")
-
+    def explain_instance(self, X_raw_row: pd.DataFrame,
+                         background_raw: Optional[pd.DataFrame] = None) -> dict:
+        """SHAP waterfall explanation for a single booking. `background_raw` is a
+        representative sample used as the SHAP reference; without it the
+        explanation is taken against the row itself (degraded)."""
+        row = self._fillna(X_raw_row)
         X_t = self.preprocessor.transform(row)
-        self._build_explainer(X_t)
-        sv  = self._explainer.shap_values(X_t)
+        bg_t = (self.preprocessor.transform(self._fillna(background_raw))
+                if background_raw is not None else X_t)
 
-        if isinstance(sv, list):
-            vals = sv[1][0]
-        else:
-            vals = sv[0]
-
-        base_val   = (self._explainer.expected_value[1]
-                      if isinstance(self._explainer.expected_value, (list,np.ndarray))
-                      else self._explainer.expected_value)
-        names      = self._get_feature_names()
+        self._build_explainer(bg_t)
+        exp  = self._explainer(X_t)
+        vals = np.asarray(exp.values)[0]
+        base_val = float(np.asarray(exp.base_values)[0])
+        names    = self._get_feature_names()
 
         # Map back to readable names (just top features)
         top_idx    = np.argsort(np.abs(vals))[::-1][:10]

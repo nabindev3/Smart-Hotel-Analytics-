@@ -1,4 +1,5 @@
 """backend/routers/recommender.py"""
+import logging
 import os
 from functools import lru_cache
 
@@ -10,6 +11,7 @@ from backend.artifacts import artifact_path
 from src.data_io import read_table
 from src.recommender import GuestRecommender
 
+logger = logging.getLogger("hotel_api.recommender")
 router = APIRouter()
 
 @lru_cache(maxsize=1)
@@ -22,7 +24,8 @@ def _load_recommender():
     path = artifact_path("models", "recommender.joblib")
 
     def _train_and_save() -> "GuestRecommender":
-        print("[recommender] Training fresh recommender…")
+        logger.warning("Training a fresh recommender on the request path "
+                       "(no usable cached model).")
         bk = read_table(artifact_path("data", "bookings.csv"))
         rec = GuestRecommender()
         rec.fit(bk)
@@ -36,7 +39,7 @@ def _load_recommender():
         return GuestRecommender.load(path)
     except (AttributeError, ModuleNotFoundError, ImportError) as e:
         # Pickled with a different module path (e.g., __main__) — re-train.
-        print(f"[recommender] Cached model incompatible ({e}); retraining…")
+        logger.warning("Cached recommender incompatible (%s); retraining.", e)
         return _train_and_save()
 
 class GuestProfile(BaseModel):

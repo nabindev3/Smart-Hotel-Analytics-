@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from api import api_get
+from api import cached_get
 from theme import AMBER, BLUE, GOLD, GREEN, RED, themed_figure
 from ui import help_box
 
@@ -28,7 +28,7 @@ def render() -> None:
 def _channel_mix() -> None:
     st.markdown("#### Which booking channels actually make us money?")
     days = st.slider("Look back how many days?", 30, 730, 180, key="cm_days")
-    cm, err = api_get("/api/v1/analytics/channel-mix", params={"lookback_days": days})
+    cm, err = cached_get("/api/v1/analytics/channel-mix", params={"lookback_days": days})
     if err:
         st.error(err)
         return
@@ -68,7 +68,7 @@ def _channel_mix() -> None:
 def _no_show_heatmap() -> None:
     st.markdown("#### When are no-shows worst?")
     days = st.slider("Look back how many days?", 60, 1500, 365, key="ns_days")
-    ns, err = api_get("/api/v1/analytics/no-show-heatmap", params={"lookback_days": days})
+    ns, err = cached_get("/api/v1/analytics/no-show-heatmap", params={"lookback_days": days})
     if err:
         st.error(err)
         return
@@ -92,7 +92,7 @@ def _no_show_heatmap() -> None:
 def _guest_mix() -> None:
     st.markdown("#### Where are your guests coming from?")
     days = st.slider("Look back how many days?", 60, 1500, 365, key="gm_days")
-    gm, err = api_get("/api/v1/analytics/guest-mix", params={"lookback_days": days, "top_n": 12})
+    gm, err = cached_get("/api/v1/analytics/guest-mix", params={"lookback_days": days, "top_n": 12})
     if err:
         st.error(err)
         return

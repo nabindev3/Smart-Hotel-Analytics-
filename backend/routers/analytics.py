@@ -48,6 +48,11 @@ def _bookings() -> pd.DataFrame:
     return df
 
 
+@lru_cache(maxsize=1)
+def _daily() -> pd.DataFrame:
+    return read_table(artifact_path("data", "daily_kpis.csv"), parse_dates=["ds"])
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Channel mix profitability
 # ─────────────────────────────────────────────────────────────────────────────
@@ -204,8 +209,7 @@ def guest_mix(lookback_days: int = Query(365, ge=30, le=2000), top_n: int = 10):
 def revenue_trend(lookback_days: int = Query(180, ge=30, le=2000),
                   rolling: int = Query(7, ge=1, le=30)):
     """Daily revenue + rolling average, ready to chart."""
-    daily = read_table(artifact_path("data", "daily_kpis.csv"),
-                       parse_dates=["ds"])
+    daily = _daily()  # cached like the other loaders, not re-read per request
     cutoff = daily["ds"].max() - pd.Timedelta(days=lookback_days)
     recent = daily[daily["ds"] >= cutoff].copy()
     recent["revenue_smooth"] = recent["revenue"].rolling(rolling, min_periods=1).mean()

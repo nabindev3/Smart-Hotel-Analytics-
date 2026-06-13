@@ -1,10 +1,13 @@
 """backend/routers/xai.py"""
+import logging
 import os
 from functools import lru_cache
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger("hotel_api.xai")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
@@ -19,6 +22,14 @@ def _load_explainer():
     # Share the predictor's model source (registry or joblib) so SHAP explains
     # exactly the model that's serving predictions.
     return CancellationExplainer(model=load_cancellation_pipeline())
+
+
+@lru_cache(maxsize=1)
+def _background() -> pd.DataFrame:
+    # A representative sample used as the SHAP reference for single-booking
+    # explanations (so the explanation isn't taken against the row itself).
+    bk = read_table(artifact_path("data", "bookings.csv"))
+    return bk[FEATURES].sample(min(100, len(bk)), random_state=42)
 
 class BookingForXAI(BaseModel):
     hotel:                          str   = "Resort Hotel"
@@ -46,26 +57,35 @@ def explain_booking(booking: BookingForXAI):
     exp = _load_explainer()
     df  = pd.DataFrame([booking.model_dump()])[FEATURES]
     try:
-        result = exp.explain_instance(df)
-        return result
-    except Exception as e:
-        raise HTTPException(500, str(e))
+        return exp.explain_instance(df, background_raw=_background())
+    except Exception:
+        logger.exception("SHAP explain_instance failed")
+        raise HTTPException(503, "explanation temporarily unavailable")
+
+@lru_cache(maxsize=8)
+def _global_importance(n_samples: int) -> dict:
+    # Expensive: reads the full bookings frame and runs SHAP. The sample is fixed
+    # (random_state=42), so the result is deterministic for a given n_samples —
+    # cache it instead of recomputing on every request.
+    exp = _load_explainer()
+    bk  = read_table(artifact_path("data", "bookings.csv"))
+    return exp.explain_global(bk[FEATURES], n_samples=n_samples)
+
 
 @router.get("/global-importance")
 def global_importance(n_samples: int = 300):
     """Top-20 global feature importances from SHAP."""
-    exp = _load_explainer()
-    bk  = read_table(artifact_path("data", "bookings.csv"))
     try:
-        result = exp.explain_global(bk[FEATURES], n_samples=n_samples)
+        result = _global_importance(n_samples)
         return {
             "feature_names":  result["feature_names"],
             "mean_abs_shap":  result["mean_abs_shap"],
             "base_value":     result["base_value"],
             "n_samples":      result["n_samples"],
         }
-    except Exception as e:
-        raise HTTPException(500, str(e))
+    except Exception:
+        logger.exception("SHAP global-importance failed")
+        raise HTTPException(503, "explanation temporarily unavailable")
 
 @router.get("/ablation")
 def get_ablation_results():
