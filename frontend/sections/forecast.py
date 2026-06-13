@@ -4,7 +4,7 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from api import api_get
+from api import cached_get
 from theme import BLUE, GOLD, RED, gold_rule, themed_figure
 from ui import help_box
 
@@ -23,7 +23,7 @@ def render() -> None:
     horizon = st.slider("How far ahead?", 30, 180, 90)
 
     with st.spinner("Loading forecast…"):
-        data, err = api_get(f"/api/v1/forecast/{metric}",
+        data, err = cached_get(f"/api/v1/forecast/{metric}",
                             params={"horizon_days": horizon, "include_components": True})
 
     if err:

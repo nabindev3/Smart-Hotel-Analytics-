@@ -5,7 +5,7 @@ from html import escape as esc
 
 import plotly.graph_objects as go
 import streamlit as st
-from api import api_get, api_post
+from api import api_post, cached_get
 from theme import AMBER, GOLD, GREEN, RED, gold_rule, themed_figure
 from ui import help_box, render_card
 
@@ -22,7 +22,7 @@ def render() -> None:
     help_box("Paste a review (or anything a guest said) and we'll tell you if it's positive, "
              "negative, or sarcastic — plus what they're talking about (food, room, service, etc.).")
 
-    eng, _ = api_get("/api/v1/sentiment/engine-info")
+    eng, _ = cached_get("/api/v1/sentiment/engine-info")
     if eng:
         tier = eng.get("active_tier", 3)
         ico, lbl, clr = _TIER_MAP.get(tier, ("📝", "Basic", AMBER))

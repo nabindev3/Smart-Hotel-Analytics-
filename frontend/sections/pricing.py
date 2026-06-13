@@ -6,7 +6,7 @@ from html import escape as esc
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from api import api_get, api_post
+from api import api_post, cached_get
 from theme import AMBER, GOLD, GREEN, RED, themed_figure
 from ui import help_box, render_card
 
@@ -38,7 +38,7 @@ def _pricing() -> None:
     if not st.button("Get pricing recommendation", key="btn_price"):
         return
     with st.spinner("Calculating…"):
-        rec, err = api_get("/api/v1/pricing/recommendation",
+        rec, err = cached_get("/api/v1/pricing/recommendation",
                            params={"current_adr": curr_adr, "horizon_days": horizon})
     if err:
         st.error(err)

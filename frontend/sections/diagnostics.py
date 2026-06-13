@@ -4,7 +4,7 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from api import api_get
+from api import cached_get
 from theme import BLUE, GOLD, themed_figure
 from ui import help_box
 
@@ -28,7 +28,7 @@ def _global_importance() -> None:
     if not st.button("Compute"):
         return
     with st.spinner("Computing (may take 30s)…"):
-        gi, err = api_get("/api/v1/xai/global-importance", params={"n_samples": n_samp}, timeout=90)
+        gi, err = cached_get("/api/v1/xai/global-importance", params={"n_samples": n_samp}, timeout=90)
     if err:
         st.error(err)
         return
@@ -49,7 +49,7 @@ def _ablation() -> None:
     if not st.button("Load results"):
         return
     with st.spinner("Loading…"):
-        abl, err = api_get("/api/v1/xai/ablation", timeout=10)
+        abl, err = cached_get("/api/v1/xai/ablation", timeout=10)
     if err:
         st.warning(f"{err} — run `python src/ablation_study.py` first.")
         return

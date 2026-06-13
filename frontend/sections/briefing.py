@@ -4,7 +4,7 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from api import api_get
+from api import cached_get
 from theme import GOLD, gold_rule, themed_figure
 from ui import action_item, alert, help_box, metric_card
 
@@ -15,7 +15,7 @@ def render() -> None:
              "Numbers cover the last 7 days, with arrows showing how each one is moving.")
 
     period = st.slider("How many days to summarise?", 1, 30, 7, key="brf_period")
-    brief, err = api_get("/api/v1/briefing/today", params={"horizon_days": period})
+    brief, err = cached_get("/api/v1/briefing/today", params={"horizon_days": period})
 
     if err:
         st.error(f"Could not reach the analytics engine: {err}")

@@ -11,9 +11,17 @@ import os
 import time
 
 import requests
+import streamlit as st
 
+# API_BASE is where the dashboard makes its calls; PUBLIC_API_URL is only used to
+# build user-facing links (e.g. the /docs link) that must work from the browser.
+# In a single-host deploy they're the same; behind a proxy they can differ.
 API_BASE       = os.environ.get("API_BASE", "http://localhost:8000").rstrip("/")
 PUBLIC_API_URL = os.environ.get("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
+
+# Short-lived cache so reruns (every slider move / tab switch) don't re-fire the
+# same read-only GETs. Tunable; 0 disables.
+CACHE_TTL = int(os.environ.get("API_CACHE_TTL", "60"))
 
 # Render's free tier sleeps after ~15 min idle; the first hit often returns
 # 502/503/504 while the container restarts. Retry with backoff. Configurable so
@@ -52,6 +60,19 @@ def api_post(path, body, params=None, timeout=60):
     return _request_with_retry("POST", f"{API_BASE}{path}", json=body, params=params, timeout=timeout)
 
 
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL)
+def _cached_get(path: str, params_items, timeout: int):
+    params = dict(params_items) if params_items else None
+    return api_get(path, params=params, timeout=timeout)
+
+
+def cached_get(path, params=None, timeout=60):
+    """GET with a short-lived cache keyed on path+params. Use for read-only data
+    that doesn't need sub-minute freshness, so reruns don't re-hit the backend."""
+    items = tuple(sorted(params.items())) if params else None
+    return _cached_get(path, items, timeout)
+
+
 # Categorical form options come from the backend so the dropdowns stay in lockstep
 # with the model's expected enums (item 10). Falls back to a baked-in schema if
 # the endpoint is unavailable, so the form still renders offline.
@@ -70,18 +91,9 @@ _SCHEMA_FALLBACK = {
 
 
 def get_schema() -> dict:
-    """Return categorical field options from the backend (cached for the session),
-    falling back to a baked-in copy if the endpoint can't be reached."""
-    import streamlit as st  # imported lazily so this module stays import-safe
-
-    @st.cache_data(show_spinner=False, ttl=600)
-    def _fetch():
-        data, err = api_get("/api/v1/cancellation/schema", timeout=10)
-        if err or not isinstance(data, dict) or "fields" not in data:
-            return _SCHEMA_FALLBACK
-        return {**_SCHEMA_FALLBACK, **data["fields"]}
-
-    try:
-        return _fetch()
-    except Exception:
+    """Return categorical field options from the backend (cached), falling back
+    to a baked-in copy if the endpoint can't be reached."""
+    data, err = cached_get("/api/v1/cancellation/schema", timeout=10)
+    if err or not isinstance(data, dict) or "fields" not in data:
         return _SCHEMA_FALLBACK
+    return {**_SCHEMA_FALLBACK, **data["fields"]}
