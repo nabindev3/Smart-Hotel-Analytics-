@@ -85,6 +85,16 @@ def test_analytics_channel_mix():
     assert "summary" in r.json()
 
 
+def test_xai_explain_returns_a_waterfall():
+    # The SHAP path (model-agnostic explainer over the calibrated model) should
+    # produce a real explanation, not 503. A long lead time should read as risk-up.
+    r = client.post("/api/v1/xai/explain", json={**BOOKING, "lead_time": 400})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["waterfall"] and body["top_risk_factor"] != "N/A"
+    assert 0 <= body["prediction_prob"] <= 1
+
+
 def test_forecast_occupancy():
     r = client.get("/api/v1/forecast/occupancy", params={"horizon_days": 30})
     # 200 with the committed Prophet model; 503/500 only if it's genuinely absent.

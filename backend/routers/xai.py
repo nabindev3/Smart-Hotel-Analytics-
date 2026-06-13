@@ -23,6 +23,14 @@ def _load_explainer():
     # exactly the model that's serving predictions.
     return CancellationExplainer(model=load_cancellation_pipeline())
 
+
+@lru_cache(maxsize=1)
+def _background() -> pd.DataFrame:
+    # A representative sample used as the SHAP reference for single-booking
+    # explanations (so the explanation isn't taken against the row itself).
+    bk = read_table(artifact_path("data", "bookings.csv"))
+    return bk[FEATURES].sample(min(100, len(bk)), random_state=42)
+
 class BookingForXAI(BaseModel):
     hotel:                          str   = "Resort Hotel"
     lead_time:                      int   = 120
@@ -49,7 +57,7 @@ def explain_booking(booking: BookingForXAI):
     exp = _load_explainer()
     df  = pd.DataFrame([booking.model_dump()])[FEATURES]
     try:
-        return exp.explain_instance(df)
+        return exp.explain_instance(df, background_raw=_background())
     except Exception:
         logger.exception("SHAP explain_instance failed")
         raise HTTPException(503, "explanation temporarily unavailable")
