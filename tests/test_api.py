@@ -32,6 +32,17 @@ GUEST = {
 }
 
 
+def test_optional_api_key_auth(monkeypatch):
+    import backend.main as m
+    # The dependency reads the module-level API_KEY at request time.
+    monkeypatch.setattr(m, "API_KEY", "secret")
+    assert client.get("/api/v1/cancellation/schema").status_code == 401
+    assert client.get("/api/v1/cancellation/schema",
+                      headers={"X-API-Key": "secret"}).status_code == 200
+    assert client.get("/health").status_code == 200   # health stays public
+    assert client.get("/").status_code == 200          # root stays public
+
+
 def test_root_and_health():
     assert client.get("/").json()["version"]
     h = client.get("/health")

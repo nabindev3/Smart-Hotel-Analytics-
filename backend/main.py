@@ -16,7 +16,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -128,16 +128,30 @@ app.add_middleware(
     allow_headers   = ["*"],
 )
 
+# ── Optional API-key auth ─────────────────────────────────────────────────────
+# When API_KEY is set, every /api/v1/* route requires a matching X-API-Key header
+# (the paid sentiment/XAI endpoints especially shouldn't be open). Unset → no auth,
+# so the local demo keeps working. /health, /, and /docs stay public.
+API_KEY = os.environ.get("API_KEY", "")
+
+
+def require_api_key(x_api_key: str = Header(default="")):
+    if API_KEY and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="invalid or missing API key")
+
+
+_auth = [Depends(require_api_key)]
+
 # ── Routers ──────────────────────────────────────────────────────────────────
-app.include_router(forecast.router,     prefix="/api/v1/forecast",    tags=["Forecasting"])
-app.include_router(cancellation.router, prefix="/api/v1/cancellation",tags=["Cancellation"])
-app.include_router(pricing.router,      prefix="/api/v1/pricing",     tags=["Pricing"])
-app.include_router(overbooking.router,  prefix="/api/v1/overbooking", tags=["Overbooking"])
-app.include_router(recommender.router,  prefix="/api/v1/recommend",   tags=["Recommender"])
-app.include_router(sentiment.router,    prefix="/api/v1/sentiment",   tags=["Sentiment"])
-app.include_router(xai.router,          prefix="/api/v1/xai",         tags=["XAI"])
-app.include_router(briefing.router,     prefix="/api/v1/briefing",    tags=["Briefing"])
-app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Analytics"])
+app.include_router(forecast.router,     prefix="/api/v1/forecast",    tags=["Forecasting"], dependencies=_auth)
+app.include_router(cancellation.router, prefix="/api/v1/cancellation",tags=["Cancellation"], dependencies=_auth)
+app.include_router(pricing.router,      prefix="/api/v1/pricing",     tags=["Pricing"],      dependencies=_auth)
+app.include_router(overbooking.router,  prefix="/api/v1/overbooking", tags=["Overbooking"],  dependencies=_auth)
+app.include_router(recommender.router,  prefix="/api/v1/recommend",   tags=["Recommender"],  dependencies=_auth)
+app.include_router(sentiment.router,    prefix="/api/v1/sentiment",   tags=["Sentiment"],    dependencies=_auth)
+app.include_router(xai.router,          prefix="/api/v1/xai",         tags=["XAI"],          dependencies=_auth)
+app.include_router(briefing.router,     prefix="/api/v1/briefing",    tags=["Briefing"],     dependencies=_auth)
+app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Analytics"],    dependencies=_auth)
 
 # ── Health & root ────────────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])

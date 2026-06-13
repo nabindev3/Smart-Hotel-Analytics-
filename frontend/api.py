@@ -23,6 +23,9 @@ PUBLIC_API_URL = os.environ.get("PUBLIC_API_URL", "http://localhost:8000").rstri
 # same read-only GETs. Tunable; 0 disables.
 CACHE_TTL = int(os.environ.get("API_CACHE_TTL", "60"))
 
+# Sent as X-API-Key when the backend has API_KEY set (otherwise omitted).
+_AUTH_HEADERS = {"X-API-Key": os.environ["API_KEY"]} if os.environ.get("API_KEY") else {}
+
 # Render's free tier sleeps after ~15 min idle; the first hit often returns
 # 502/503/504 while the container restarts. Retry with backoff. Configurable so
 # tests (and impatient local runs) can fail fast: API_RETRIES=1 → no waiting.
@@ -33,6 +36,8 @@ _COLD_START_STATUSES = {502, 503, 504}
 def _request_with_retry(method, url, *, retries=None, timeout=60, **kwargs):
     retries = _RETRIES if retries is None else retries
     delay, last_err = 2, None
+    if _AUTH_HEADERS:
+        kwargs["headers"] = {**_AUTH_HEADERS, **kwargs.get("headers", {})}
     for attempt in range(retries):
         try:
             r = requests.request(method, url, timeout=timeout, **kwargs)
