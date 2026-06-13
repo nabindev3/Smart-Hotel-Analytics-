@@ -1,0 +1,32 @@
+# Render Blueprint — codifies the backend deploy as a Docker service.
+#
+# Building from Dockerfile.backend (slim requirements.prod.txt, Python 3.11)
+# avoids the native buildpack picking a Python version with no scipy wheel
+# (which triggered a from-source build that needs gfortran). It also keeps the
+# image lean — the full requirements.txt (TensorFlow, JupyterLab, …) never ships.
+#
+# Adopt it via the Render dashboard → "Blueprints" → connect this repo. If you
+# already have a service from the dashboard, either point it at this blueprint or
+# match its name below so Render updates it instead of creating a new one.
+services:
+  - type: web
+    name: smart-hotel-analytics
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerContext: .
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    # Bind the port Render assigns ($PORT), falling back to 8000 for local runs.
+    dockerCommand: sh -c "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      # Tell the dashboard where it links to itself (used for /docs links).
+      - key: PUBLIC_API_URL
+        value: https://smart-hotel-analytics.onrender.com
+      # ── Optional hardening — set these in the dashboard, not in git ──
+      # - key: API_KEY        # require X-API-Key on every /api/v1/* route
+      #   sync: false
+      # - key: CORS_ORIGINS   # lock CORS to the dashboard's origin
+      #   sync: false
