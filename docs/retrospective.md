@@ -80,3 +80,16 @@ deploy. The mechanism is in; the flip is a documented, ordered step
 - **Stop gold-plating comments.** Some of my early comments explain the obvious.
   The ones worth keeping say *why* (the leakage rationale, the walk-risk
   fallback); the ones narrating *what* the next line does are noise.
+
+## Known issue: SHAP can't explain the calibrated model
+
+The XAI endpoints (`/xai/explain`, `/xai/global-importance`) are currently
+degraded. The served model is `CalibratedClassifierCV(XGBoost)`, and SHAP's
+`TreeExplainer` rejects the calibration wrapper; unwrapping to the base
+`XGBClassifier` then hits a separate shap-vs-xgboost incompatibility (the
+`base_score` is serialized as `'[0.5]'`, which shap's loader can't parse). For
+now the endpoints log the detail and return a clean **503** instead of leaking a
+500 stack. The real fixes are version-pinning shap/xgboost to a compatible pair,
+or explaining `calibrated_classifiers_[0].estimator` via the modern
+`shap.Explainer` API / a `KernelExplainer` over the calibrated pipeline. Tracked
+as future work rather than papered over.
