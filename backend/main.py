@@ -99,25 +99,32 @@ async def lifespan(app: FastAPI):
 # ─────────────────────────────────────────────────────────────────────────────
 #  App
 # ─────────────────────────────────────────────────────────────────────────────
+VERSION = "2.0.0"   # single source — referenced by the app, root, and /health
+
 app = FastAPI(
     title       = "Smart Hotel Analytics API",
     description = (
-        "Production ML microservice for hotel revenue management.\n\n"
+        "ML microservice for hotel revenue management.\n\n"
         "Endpoints: forecasting · cancellation risk · dynamic pricing · "
-        "LP overbooking · guest recommender · XAI (SHAP) · sentiment NLP."
+        "overbooking · guest recommender · XAI (SHAP) · sentiment NLP."
     ),
-    version  = "2.0.0",
+    version  = VERSION,
     docs_url = "/docs",
     lifespan = lifespan,
 )
 
 # ── Middleware ────────────────────────────────────────────────────────────────
+# Lock CORS to the frontend origin(s) via CORS_ORIGINS (comma-separated). Defaults
+# to "*" so local dev / the demo keep working, but a real deploy should set it to
+# the dashboard's origin. Only the methods the API actually uses are allowed.
+_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins  = ["*"],     # restrict in prod
-    allow_methods  = ["*"],
-    allow_headers  = ["*"],
+    allow_origins   = _origins or ["*"],
+    allow_credentials = bool(_origins),     # credentials can't be combined with "*"
+    allow_methods   = ["GET", "POST", "OPTIONS"],
+    allow_headers   = ["*"],
 )
 
 # ── Routers ──────────────────────────────────────────────────────────────────
@@ -134,7 +141,7 @@ app.include_router(analytics.router,    prefix="/api/v1/analytics",   tags=["Ana
 # ── Health & root ────────────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])
 def root():
-    return {"service": "Smart Hotel Analytics API", "version": "2.0.0", "status": "ok"}
+    return {"service": "Smart Hotel Analytics API", "version": VERSION, "status": "ok"}
 
 @app.get("/health", tags=["Health"])
 def health():
