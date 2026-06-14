@@ -2,15 +2,21 @@
 generate_data.py — Synthetic Hotel Data Generator
 =========================================================
 
-⚠️  ALL DATA PRODUCED HERE IS SYNTHETIC.  ⚠️
+⚠️  EVERYTHING THIS SCRIPT PRODUCES IS SYNTHETIC.  ⚠️
 Every booking, KPI, review, and external regressor below is *fabricated* by this
-script — there is no real hotel, PMS, or guest behind any of it. The whole
-analytics stack (forecasting, cancellation model, recommender, pricing) trains
-and evaluates on this generated data, so reported metrics reflect how well the
-models fit a simulation, not real-world performance. Treat this as a
-demonstration / portfolio pipeline, not a production system trained on real
-operations. To use it for real, replace these outputs with PMS/POS exports of
-the same schema.
+script. There is no real hotel, PMS, or guest behind any of it.
+
+How it's used downstream is NOT uniformly synthetic, though:
+  • Cancellation model: does NOT train on this alone. `src/load_real_data.py`
+    blends these synthetic bookings with the REAL Antonio, Almeida & Nunes (2019)
+    Hotel Booking Demand dataset (~67% real, ~119k rows), so the reported
+    cancellation AUC is a genuine real-data result.
+  • Forecasting series, recommender interaction matrix, demo reviews: purely
+    synthetic, so those metrics reflect fit to a simulation, not real-world
+    performance.
+
+Treat this as a demonstration / portfolio pipeline. To run the synthetic parts on
+real operations, replace these outputs with PMS/POS exports of the same schema.
 
 It deliberately simulates the REAL-WORLD messiness a data pipeline must defend
 against:
@@ -22,7 +28,8 @@ against:
 
 Outputs
 -------
-  data/bookings.csv       — 60,000 messy bookings (2019–2024)
+  data/bookings.csv       — 60,000 messy synthetic bookings (2019–2024); later
+                            blended up to ~179k by src/load_real_data.py
   data/daily_kpis.csv     — 2,192-day daily KPI series
   data/external_regs.csv  — daily external regressor series (for Prophet)
   data/reviews.csv        — 30 timestamped reviews

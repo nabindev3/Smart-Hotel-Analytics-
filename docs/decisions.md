@@ -151,19 +151,26 @@ sprinkled across files.
 differently depending on what's available. For a dashboard that's acceptable; for
 anything downstream-critical it would need pinning to one engine.
 
-## Synthetic data, loudly labelled
+## Real-majority blend for cancellation, synthetic for the rest
 
 **Context.** I don't have access to a real PMS, and a portfolio project
-shouldn't pretend otherwise.
+shouldn't pretend otherwise. But the flagship model — cancellation — deserves a
+real-world benchmark, not a number I could trivially inflate by tuning the same
+generator the model trains on.
 
-**Decision.** Generate the data (`src/generate_data.py`) with deliberate
-messiness — missing values, outliers, post-COVID drift — so the cleaning and
-validation code has something real to do, and slap an unmissable "this is
-synthetic" banner on the generator and the README.
+**Decision.** Train the cancellation model on a **blend**: the real Antonio,
+Almeida & Nunes (2019) Hotel Booking Demand dataset (~67%, fetched by
+`src/load_real_data.py`) plus 60,000 synthetic bookings from
+`src/generate_data.py`. The synthetic generator stays deliberately messy —
+missing values, outliers, post-COVID drift — so the cleaning and validation code
+has something real to do. The forecasting series, the recommender's interaction
+matrix, and the demo reviews remain fully synthetic. Banners on the generator and
+the README spell out which is which, per component.
 
-**Trade-off.** Every metric in this repo measures fit-to-simulation, not
-real-world skill. I'd rather be upfront about that than have someone assume the
-numbers transfer.
+**Trade-off.** The cancellation AUC (0.814, post-leakage-removal) is a genuine
+real-data result and defensible as such. The forecasting and recommender metrics
+still measure fit-to-simulation — I'd rather label that line precisely than slap a
+blanket "it's all synthetic" warning that makes the real result look fake too.
 
 ## Slim prod image, one Uvicorn worker (Render free tier)
 
