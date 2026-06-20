@@ -72,7 +72,10 @@ class CancellationExplainer:
         # model-agnostic Explainer over its class-1 probability. `background`
         # should be a representative sample, not the row(s) being explained.
         if self._explainer is None:
-            bg = shap.sample(background, min(100, len(background)), random_state=0)
+            # Keep the reference set small — on a 512 MB box a large background
+            # multiplies both the per-call RAM and the (already throttled) CPU
+            # cost of the model-agnostic explainer.
+            bg = shap.sample(background, min(50, len(background)), random_state=0)
             self._explainer = shap.Explainer(
                 lambda d: self.clf.predict_proba(d)[:, 1], bg)
 
@@ -151,6 +154,9 @@ class CancellationExplainer:
 
 
 if __name__ == "__main__":
+    import json
+    import os
+
     bk = pd.read_csv("data/bookings.csv")
     exp = CancellationExplainer("models/cancellation_model.joblib")
 
@@ -159,6 +165,15 @@ if __name__ == "__main__":
     print("Top 5 features:")
     for name, val in zip(g["feature_names"][:5], g["mean_abs_shap"][:5]):
         print(f"  {name:<40} {val:.5f}")
+
+    # Persist the slim artifact the API serves from GET /api/v1/xai/global-importance.
+    # Serving this precomputed file avoids running full-frame SHAP at request time,
+    # which OOM-kills the 512 MB free-tier worker. Rerun this after retraining.
+    out = os.path.join("models", "global_importance.json")
+    with open(out, "w") as f:
+        json.dump({k: g[k] for k in ("feature_names", "mean_abs_shap",
+                                     "base_value", "n_samples")}, f, indent=2)
+    print(f"Saved {out} (n_samples={g['n_samples']}).")
 
     print("\nInstance explanation (booking #1):")
     row = bk[FEATURES].head(1)

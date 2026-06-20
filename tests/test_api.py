@@ -106,6 +106,17 @@ def test_xai_explain_returns_a_waterfall():
     assert 0 <= body["prediction_prob"] <= 1
 
 
+def test_xai_global_importance_served_from_precompute():
+    # Global importance is served from the committed artifact so the heavy live
+    # SHAP run never hits the request path (it OOMs the free-tier worker).
+    r = client.get("/api/v1/xai/global-importance")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["feature_names"] and body["mean_abs_shap"]
+    assert len(body["feature_names"]) == len(body["mean_abs_shap"])
+    assert body["source"] == "precomputed"
+
+
 def test_forecast_occupancy():
     r = client.get("/api/v1/forecast/occupancy", params={"horizon_days": 30})
     # 200 with the committed Prophet model; 503/500 only if it's genuinely absent.

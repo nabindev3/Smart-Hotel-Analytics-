@@ -70,13 +70,20 @@ def _warm_models():
     from backend.routers.cancellation import _load_cancel_model
     from backend.routers.forecast import _load_prophet
     from backend.routers.recommender import _load_recommender
-    from backend.routers.xai import _load_explainer
+    from backend.routers.xai import _load_explainer, warmup as _warmup_xai
 
     _try_load("cancellation", _load_cancel_model)
     for n in ["occupancy", "adr", "revenue"]:
         _try_load(f"prophet_{n}", lambda n=n: _load_prophet(n))
     _try_load("recommender", _load_recommender)
     _try_load("explainer", _load_explainer)
+    # Pay SHAP's one-time numba JIT cost here (background thread) so the first
+    # /xai/explain request isn't the one that waits >100 s and times out as a 503.
+    if _MODEL_STATUS["explainer"] is True:
+        try:
+            _warmup_xai()
+        except Exception:
+            logger.exception("XAI warm-up failed (non-fatal)")
 
     failed = [k for k, v in _MODEL_STATUS.items() if v not in (True, None)]
     if failed:

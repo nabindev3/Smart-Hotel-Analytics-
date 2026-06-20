@@ -24,11 +24,11 @@ def render() -> None:
 
 def _global_importance() -> None:
     st.markdown("#### What drives the no-show predictions?")
-    n_samp = st.slider("Sample size", 100, 500, 200)
+    st.caption("Precomputed with SHAP over a 500-booking sample.")
     if not st.button("Compute"):
         return
-    with st.spinner("Computing (may take 30s)…"):
-        gi, err = cached_get("/api/v1/xai/global-importance", params={"n_samples": n_samp}, timeout=90)
+    with st.spinner("Loading…"):
+        gi, err = cached_get("/api/v1/xai/global-importance", timeout=30)
     if err:
         st.error(err)
         return

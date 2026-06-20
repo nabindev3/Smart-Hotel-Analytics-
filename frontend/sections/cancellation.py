@@ -73,7 +73,9 @@ def render() -> None:
     }
     with st.spinner("Scoring…"):
         pred, e1 = api_post("/api/v1/cancellation/predict", body)
-        xai,  e2 = api_post("/api/v1/xai/explain", body)
+        # SHAP explain is heavier than predict and the first call after a cold
+        # start can be slow; give it more headroom than the 60s default.
+        xai,  e2 = api_post("/api/v1/xai/explain", body, timeout=90)
 
     if e1:
         st.error(f"Could not score: {e1}")

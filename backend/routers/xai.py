@@ -1,4 +1,5 @@
 """backend/routers/xai.py"""
+import json
 import logging
 import os
 from functools import lru_cache
@@ -17,6 +18,17 @@ from src.shap_explainer import FEATURES, CancellationExplainer
 
 router = APIRouter()
 
+# Live SHAP is brutal on a small box (Render free tier = 512 MB RAM + a heavily
+# throttled CPU): a full-frame global run OOM-kills the worker (502), and the
+# first call pays a one-time numba JIT compile that can take >100 s — past the
+# client timeout, surfacing as a 503. Two mitigations live in this file:
+#   • global importance is served from a precomputed artifact (memory-safe,
+#     instant); live compute is only a *capped* fallback if it's missing.
+#   • warmup() pays the cold JIT cost at startup, not on a user's first request.
+_BACKGROUND_ROWS = 50    # SHAP reference sample size — smaller = less RAM/CPU/call
+_LIVE_GLOBAL_CAP = 150   # ceiling for the fallback live global run (avoid OOM)
+
+
 @lru_cache(maxsize=1)
 def _load_explainer():
     # Share the predictor's model source (registry or joblib) so SHAP explains
@@ -29,7 +41,21 @@ def _background() -> pd.DataFrame:
     # A representative sample used as the SHAP reference for single-booking
     # explanations (so the explanation isn't taken against the row itself).
     bk = read_table(artifact_path("data", "bookings.csv"))
-    return bk[FEATURES].sample(min(100, len(bk)), random_state=42)
+    return bk[FEATURES].sample(min(_BACKGROUND_ROWS, len(bk)), random_state=42)
+
+
+def warmup() -> None:
+    """Build the explainer and run one throwaway explanation at startup.
+
+    The first SHAP call triggers a one-time numba JIT compilation. On the
+    free-tier CPU that cold compile can take well over a minute — long enough to
+    blow the client timeout and surface to the user as a 503. Doing it here (from
+    the background warm-up thread) means real requests hit an already-warm
+    explainer. Failures are non-fatal: the lazy first-call path still works."""
+    exp = _load_explainer()
+    exp.explain_instance(_background().head(1), background_raw=_background())
+    logger.info("XAI explainer warmed up.")
+
 
 class BookingForXAI(BaseModel):
     hotel:                          str   = "Resort Hotel"
@@ -62,26 +88,51 @@ def explain_booking(booking: BookingForXAI):
         logger.exception("SHAP explain_instance failed")
         raise HTTPException(503, "explanation temporarily unavailable")
 
+
 @lru_cache(maxsize=8)
-def _global_importance(n_samples: int) -> dict:
-    # Expensive: reads the full bookings frame and runs SHAP. The sample is fixed
-    # (random_state=42), so the result is deterministic for a given n_samples —
-    # cache it instead of recomputing on every request.
+def _global_importance_live(n_samples: int) -> dict:
+    # Fallback path only (see _precomputed_global). Expensive: reads the bookings
+    # frame and runs SHAP. Deterministic for a given n_samples (random_state=42),
+    # so cache it instead of recomputing on every request.
     exp = _load_explainer()
     bk  = read_table(artifact_path("data", "bookings.csv"))
     return exp.explain_global(bk[FEATURES], n_samples=n_samples)
 
 
+def _precomputed_global() -> dict | None:
+    """Load the precomputed global-importance artifact, if present. Regenerate it
+    with `python -m src.shap_explainer` after retraining the cancellation model."""
+    path = artifact_path("models", "global_importance.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 @router.get("/global-importance")
 def global_importance(n_samples: int = 300):
-    """Top-20 global feature importances from SHAP."""
-    try:
-        result = _global_importance(n_samples)
+    """Top-20 global feature importances from SHAP.
+
+    Served from the precomputed artifact (instant, memory-safe). The full-frame
+    live run OOM-kills the 512 MB free-tier worker, so it's used only as a capped
+    fallback when the artifact is missing."""
+    pre = _precomputed_global()
+    if pre is not None:
         return {
-            "feature_names":  result["feature_names"],
-            "mean_abs_shap":  result["mean_abs_shap"],
-            "base_value":     result["base_value"],
-            "n_samples":      result["n_samples"],
+            "feature_names": pre["feature_names"],
+            "mean_abs_shap": pre["mean_abs_shap"],
+            "base_value":    pre["base_value"],
+            "n_samples":     pre["n_samples"],
+            "source":        "precomputed",
+        }
+    try:
+        result = _global_importance_live(min(n_samples, _LIVE_GLOBAL_CAP))
+        return {
+            "feature_names": result["feature_names"],
+            "mean_abs_shap": result["mean_abs_shap"],
+            "base_value":    result["base_value"],
+            "n_samples":     result["n_samples"],
+            "source":        "live",
         }
     except Exception:
         logger.exception("SHAP global-importance failed")
@@ -90,7 +141,6 @@ def global_importance(n_samples: int = 300):
 @router.get("/ablation")
 def get_ablation_results():
     """Return pre-computed ablation study results."""
-    import json
     path = artifact_path("models", "ablation_results.json")
     if not os.path.exists(path):
         raise HTTPException(404, "Run src/ablation_study.py first.")

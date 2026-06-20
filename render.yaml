@@ -10,7 +10,7 @@
 # match its name below so Render updates it instead of creating a new one.
 services:
   - type: web
-    name: smart-hotel-analytics
+    name: smart-hotel-analytics-platform
     runtime: docker
     dockerfilePath: ./Dockerfile.backend
     dockerContext: .
@@ -24,7 +24,7 @@ services:
         value: "1"
       # Tell the dashboard where it links to itself (used for /docs links).
       - key: PUBLIC_API_URL
-        value: https://smart-hotel-analytics.onrender.com
+        value: https://smart-hotel-analytics-platform.onrender.com
       # ── Optional hardening — set these in the dashboard, not in git ──
       # - key: API_KEY        # require X-API-Key on every /api/v1/* route
       #   sync: false

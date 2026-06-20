@@ -27,9 +27,11 @@ CACHE_TTL = int(os.environ.get("API_CACHE_TTL", "60"))
 _AUTH_HEADERS = {"X-API-Key": os.environ["API_KEY"]} if os.environ.get("API_KEY") else {}
 
 # Render's free tier sleeps after ~15 min idle; the first hit often returns
-# 502/503/504 while the container restarts. Retry with backoff. Configurable so
-# tests (and impatient local runs) can fail fast: API_RETRIES=1 → no waiting.
-_RETRIES = int(os.environ.get("API_RETRIES", "4"))
+# 502/503/504 while the container restarts — and waking a Docker image with heavy
+# ML deps can take ~60 s. Retry with exponential backoff (2+4+8+16+32 ≈ 62 s)
+# so a cold start surfaces as a short wait, not a 503. Configurable so tests (and
+# impatient local runs) can fail fast: API_RETRIES=1 → no waiting.
+_RETRIES = int(os.environ.get("API_RETRIES", "6"))
 _COLD_START_STATUSES = {502, 503, 504}
 
 
