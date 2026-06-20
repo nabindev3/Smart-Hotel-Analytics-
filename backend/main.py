@@ -70,7 +70,8 @@ def _warm_models():
     from backend.routers.cancellation import _load_cancel_model
     from backend.routers.forecast import _load_prophet
     from backend.routers.recommender import _load_recommender
-    from backend.routers.xai import _load_explainer, warmup as _warmup_xai
+    from backend.routers.xai import _load_explainer
+    from backend.routers.xai import warmup as _warmup_xai
 
     _try_load("cancellation", _load_cancel_model)
     for n in ["occupancy", "adr", "revenue"]:
