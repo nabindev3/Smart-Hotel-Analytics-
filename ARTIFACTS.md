@@ -40,27 +40,6 @@ python scripts/publish_artifacts.py                            # → dist/artifa
   `python scripts/publish_artifacts.py --dest-dir dist/artifacts`, sync that
   tree to your bucket, and set `ARTIFACTS_BASE_URL` to its base URL.
 
-## Loading the cancellation model from the MLflow registry (optional)
-
-Training registers the cancellation pipeline in the MLflow Model Registry as
-`hotel_cancellation` (`src/train_models_ts.py`, best-effort). By default the
-backend still loads the local `.joblib`, but `backend/registry.py` can load a
-*registered, promoted* version instead — set:
-
-```
-MLFLOW_CANCELLATION_MODEL=hotel_cancellation
-MLFLOW_CANCELLATION_STAGE=latest          # or a version number / alias
-MLFLOW_TRACKING_URI=<your MLflow backend>  # e.g. a hosted server
-```
-
-With these set, promoting a new version in MLflow rolls the served model forward
-(or back) with no redeploy. If the env var is unset, mlflow isn't installed, or
-the load fails, it falls back to the local joblib — so it's safe to ship off.
-`mlflow` is **not** in `requirements.prod.txt`; add it to the image only if you
-turn this on. Note the registry backend (`mlruns/mlflow.db`) is local and
-gitignored, so registry-at-serve on a real deploy needs a reachable MLflow
-server, not the sqlite file.
-
 ## The flip: stop baking artifacts in & untrack them (review #18/#24/#22)
 
 The mechanism above is built and tested, but the artifacts are still committed

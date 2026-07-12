@@ -79,7 +79,7 @@ jobs:
   # ══════════════════════════════════════════════
   # 1b. TRAINING SMOKE TEST  (heavy — manual / on demand)
   # ══════════════════════════════════════════════
-  # Full data-gen + training exercises the heavy pipeline (Prophet, N-BEATS,
+  # Full data-gen + training exercises the heavy pipeline (Prophet,
   # calibration, MLflow). It's minutes long and needs the full requirements, so
   # it runs on manual dispatch instead of every push/PR.
   train-smoke:

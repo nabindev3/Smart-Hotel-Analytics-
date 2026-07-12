@@ -12,9 +12,9 @@ logger = logging.getLogger("hotel_api.xai")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.artifacts import artifact_path
-from backend.registry import load_cancellation_pipeline
+from backend.routers.cancellation import _load_cancel_model
 from src.data_io import read_table
-from src.shap_explainer import FEATURES, CancellationExplainer
+from src.shap_explainer import CancellationExplainer
 
 router = APIRouter()
 
@@ -31,9 +31,9 @@ _LIVE_GLOBAL_CAP = 150   # ceiling for the fallback live global run (avoid OOM)
 
 @lru_cache(maxsize=1)
 def _load_explainer():
-    # Share the predictor's model source (registry or joblib) so SHAP explains
-    # exactly the model that's serving predictions.
-    return CancellationExplainer(model=load_cancellation_pipeline())
+    # Reuse the predictor's cached pipeline so SHAP explains exactly the model
+    # that's serving predictions (and only one copy sits in memory).
+    return CancellationExplainer(model=_load_cancel_model())
 
 
 @lru_cache(maxsize=1)
@@ -41,7 +41,8 @@ def _background() -> pd.DataFrame:
     # A representative sample used as the SHAP reference for single-booking
     # explanations (so the explanation isn't taken against the row itself).
     bk = read_table(artifact_path("data", "bookings.csv"))
-    return bk[FEATURES].sample(min(_BACKGROUND_ROWS, len(bk)), random_state=42)
+    cols = _load_explainer().features
+    return bk[cols].sample(min(_BACKGROUND_ROWS, len(bk)), random_state=42)
 
 
 def warmup() -> None:
@@ -81,7 +82,7 @@ class BookingForXAI(BaseModel):
 def explain_booking(booking: BookingForXAI):
     """SHAP waterfall explanation for a single booking."""
     exp = _load_explainer()
-    df  = pd.DataFrame([booking.model_dump()])[FEATURES]
+    df  = pd.DataFrame([booking.model_dump()])[exp.features]
     try:
         return exp.explain_instance(df, background_raw=_background())
     except Exception:
@@ -96,7 +97,7 @@ def _global_importance_live(n_samples: int) -> dict:
     # so cache it instead of recomputing on every request.
     exp = _load_explainer()
     bk  = read_table(artifact_path("data", "bookings.csv"))
-    return exp.explain_global(bk[FEATURES], n_samples=n_samples)
+    return exp.explain_global(bk[exp.features], n_samples=n_samples)
 
 
 def _precomputed_global() -> dict | None:

@@ -34,12 +34,9 @@ Fallback chain
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import os
 import time
-from pathlib import Path
 from typing import Optional
 
 import requests
@@ -75,36 +72,6 @@ SENTIMENT_LABEL_MAP = {
     "LABEL_1": "Neutral",  "neutral":  "Neutral",
     "LABEL_2": "Positive", "positive": "Positive",
 }
-
-CACHE_PATH = Path("data/hf_sentiment_cache.json")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  Cache helpers
-# ─────────────────────────────────────────────────────────────────────────────
-def _load_cache() -> dict:
-    if CACHE_PATH.exists():
-        try:
-            with open(CACHE_PATH) as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-def _save_cache(cache: dict):
-    """Best-effort cache save. Never raises — read-only mounts (e.g. Docker
-    `./data:/app/data:ro`) and missing dirs just disable caching for the
-    current request."""
-    try:
-        CACHE_PATH.parent.mkdir(exist_ok=True)
-        with open(CACHE_PATH, "w") as f:
-            json.dump(cache, f, indent=2)
-    except (OSError, PermissionError) as e:
-        logger.debug(f"HF cache disabled (cannot write {CACHE_PATH}): {e}")
-
-def _cache_key(text: str, suffix: str = "") -> str:
-    return hashlib.md5(f"{text.strip().lower()}{suffix}".encode()).hexdigest()[:20]
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  HuggingFace HTTP client
@@ -259,26 +226,15 @@ class HuggingFaceSentimentEngine:
       3. Zero-shot aspect scoring (BART)     → per-aspect -1…+1 scores
       4. Keyword theme extraction            → themes list
 
-    All results are cached to avoid redundant API calls.
+    Caching lives in the caller (src/sentiment_engine.py stores final results).
     """
 
     def __init__(self, token: Optional[str] = None):
         self.client  = HFInferenceClient(token)
         self._engine = f"HuggingFace ({MODELS['sentiment'].split('/')[-1]})"
 
-    def analyse(self, text: str, use_cache: bool = True) -> dict:
-        key   = _cache_key(text, "hf_v2")
-        cache = _load_cache() if use_cache else {}
-        if key in cache:
-            return cache[key]
-
-        text  = str(text).strip()
-        result = self._run_pipeline(text)
-
-        if use_cache:
-            cache[key] = result
-            _save_cache(cache)
-        return result
+    def analyse(self, text: str) -> dict:
+        return self._run_pipeline(str(text).strip())
 
     def _run_pipeline(self, text: str) -> dict:
         # ── 1. Sentiment ──────────────────────────────────────────────────
@@ -341,38 +297,6 @@ class HuggingFaceSentimentEngine:
             },
         }
 
-    def analyse_batch(self, texts: list[str],
-                       delay: float = 0.5) -> list[dict]:
-        results = []
-        for i, text in enumerate(texts):
-            r = self.analyse(text)
-            results.append(r)
-            if i < len(texts) - 1:
-                time.sleep(delay)
-        return results
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  Module-level convenience functions (same interface as sentiment_engine.py)
-# ─────────────────────────────────────────────────────────────────────────────
-_engine_instance: Optional[HuggingFaceSentimentEngine] = None
-
-def _get_engine() -> HuggingFaceSentimentEngine:
-    global _engine_instance
-    if _engine_instance is None:
-        _engine_instance = HuggingFaceSentimentEngine()
-    return _engine_instance
-
-
-def analyse_hf(text: str, use_cache: bool = True) -> dict:
-    """Analyse a single review with the HuggingFace pipeline."""
-    return _get_engine().analyse(text, use_cache=use_cache)
-
-
-def analyse_batch_hf(texts: list[str]) -> list[dict]:
-    """Analyse a batch of reviews."""
-    return _get_engine().analyse_batch(texts)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Smoke test (offline-safe — uses mock data if network unavailable)
@@ -398,7 +322,7 @@ if __name__ == "__main__":
     for text, expected in test_cases:
         print(f"Text    : {text[:70]}…" if len(text) > 70 else f"Text    : {text}")
         print(f"Expected: {expected}")
-        result = engine.analyse(text, use_cache=False)
+        result = engine.analyse(text)
         if result.get("_hf_failed"):
             print("Result  : ⚠ HF API unreachable (network blocked in this environment)")
             print("          This will work correctly on your local machine.")

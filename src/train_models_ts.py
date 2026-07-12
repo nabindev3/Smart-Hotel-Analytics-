@@ -4,7 +4,7 @@ train_models_ts.py — MLOps-grade Training Pipeline
 What this does that basic pipelines don't:
   1. MLflow experiment tracking
   2. Walk-forward CV avoiding temporal leakage
-  3. Proper Baselines (LogReg, XGBoost, LightGBM, N-BEATS)
+  3. Proper Baselines (LogReg, XGBoost, LightGBM)
   4. Calibration with Brier Score & Reliability Diagrams
   5. Subgroup Metrics
 """
@@ -29,8 +29,6 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
-from neuralforecast import NeuralForecast
-from neuralforecast.models import NBEATS
 from prophet import Prophet
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from sklearn.compose import ColumnTransformer
@@ -147,29 +145,6 @@ def train_prophet_model(name: str, cfg: dict, train_df: pd.DataFrame, test_df:  
     else: mape = np.nan
     return m, forecast, mape
 
-def train_nbeats_model(name: str, train_df: pd.DataFrame, test_df: pd.DataFrame) -> float:
-    horizon = len(test_df)
-    if horizon == 0: return np.nan
-    train_nf = train_df[['ds', 'y']].copy()
-    train_nf['unique_id'] = name
-
-    # Simple N-BEATS configuration
-    models = [NBEATS(input_size=max(7, horizon), h=horizon, max_steps=100)]
-    try:
-        import logging
-        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-        nf = NeuralForecast(models=models, freq='D')
-        nf.fit(df=train_nf)
-        forecast = nf.predict().reset_index()
-        merged = test_df[["ds", "y"]].merge(forecast, on="ds", how="inner")
-        if len(merged) > 0:
-            mape = (np.abs(merged["y"] - merged["NBEATS"]) / merged["y"]).mean()
-        else: mape = np.nan
-        return mape
-    except Exception as e:
-        print(f"    [N-BEATS Error: {e}]")
-        return np.nan
-
 def train_all_prophet(daily: pd.DataFrame, ext: pd.DataFrame, run_id: str) -> dict:
     TRAIN_CUTOFF = "2024-06-30"
     results = {}
@@ -200,25 +175,8 @@ def train_all_prophet(daily: pd.DataFrame, ext: pd.DataFrame, run_id: str) -> di
 
         print(f"MAPE={mape:.2%}  [{elapsed:.1f}s]")
 
-        # N-BEATS baseline. KNOWN LIMITATION: this is run only for the first
-        # target, so the RESULTS.md baseline table is half-empty. Root cause is
-        # the PyTorch-Lightning DataLoader spawning multiprocessing workers that
-        # leak named semaphores on macOS ("objc/resource_tracker" warnings),
-        # eventually hitting the per-process semaphore limit across 3 fits. The
-        # real fix is to force single-process data loading (num_workers=0 on the
-        # NeuralForecast/NBEATS dataloader) so all three targets can run; until
-        # then we cap it at one to keep training reliable on macOS dev machines.
-        if name == "occupancy":
-            print(f"  ▸ N-BEATS baseline [{name}] …", end=" ", flush=True)
-            t1 = time.time()
-            nbeats_mape = train_nbeats_model(name, train, test)
-            print(f"MAPE={nbeats_mape:.2%} [{time.time()-t1:.1f}s]")
-        else:
-            nbeats_mape = np.nan
-
-        results[name] = {"mape":mape, "nbeats_mape": nbeats_mape, "elapsed":elapsed}
+        results[name] = {"mape":mape, "elapsed":elapsed}
         mlflow.log_metric(f"prophet_{name}_mape", mape if not np.isnan(mape) else 1.0)
-        mlflow.log_metric(f"nbeats_{name}_mape", nbeats_mape if not np.isnan(nbeats_mape) else 1.0)
         mlflow.log_param(f"prophet_{name}_mode", cfg["mode"])
         mlflow.log_param(f"prophet_{name}_cp",   cfg["cp"])
 
@@ -419,8 +377,8 @@ def train_cancellation_model(bookings: pd.DataFrame) -> dict:
                  "engine": best_model_name, "best_threshold": best_threshold},
                 M("feature_config.joblib"))
 
-    # Register the pipeline in the MLflow Model Registry so serving can load a
-    # promoted version instead of a raw path (see backend/registry.py). Best
+    # Log the pipeline to the MLflow run (and register it as `hotel_cancellation`
+    # for the tracking UI; serving always loads the local joblib). Best
     # effort — a registry hiccup must never fail a training run. (mlflow.sklearn
     # is imported at module scope; re-importing it here would shadow the global
     # `mlflow` and make the earlier mlflow.log_metric calls UnboundLocalError.)
@@ -519,13 +477,12 @@ def generate_results_md(ts_results: dict, ml_res: dict):
         "```",
         "",
         "## 5. Forecasting Baselines",
-        "Comparing Prophet (with external regressors) against N-BEATS (univariate baseline).",
-        "| Target | Prophet MAPE | N-BEATS MAPE |",
-        "|---|---|---|"
+        "Prophet (with external regressors) MAPE on the temporal holdout.",
+        "| Target | Prophet MAPE |",
+        "|---|---|"
     ]
     for name, r in ts_results.items():
-        nbeats_m = f"{r['nbeats_mape']:.2%}" if not pd.isna(r['nbeats_mape']) else "N/A"
-        md.append(f"| {name} | {r['mape']:.2%} | {nbeats_m} |")
+        md.append(f"| {name} | {r['mape']:.2%} |")
 
     with open(os.path.join(BASE, "RESULTS.md"), "w") as f:
         f.write("\n".join(md))

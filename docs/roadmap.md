@@ -10,8 +10,10 @@ some of these are designed-but-not-done, not just ideas.
   `clean_bookings` (structural check on raw, invariant check on clean).
 - **Parquet for the analytical frames.** ✅ `src/data_io.py` reads parquet when
   present (CSV fallback); committed parquet siblings, ~7x smaller bookings.
-- **Model registry at serve time.** ✅ Training registers `hotel_cancellation`;
-  `backend/registry.py` serves it from the registry when configured, else joblib.
+- **Model registry at serve time.** ❌ Removed — training still registers
+  `hotel_cancellation` for the tracking UI, but the env-gated serve path
+  (`backend/registry.py`) was never configured anywhere, so serving loads the
+  local joblib directly. Rebuild it when a real hosted MLflow server exists.
 - **Lint the whole repo.** ✅ The ruff gate now covers `backend scripts tests
   frontend src` — cleaning `src/` also caught a real `UnboundLocalError` (a
   shadowing local `mlflow` import in training).

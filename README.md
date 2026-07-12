@@ -100,7 +100,6 @@ All optional — the defaults run an open local demo. Set these to harden a depl
 | `API_KEY` | Require an `X-API-Key` header on all `/api/v1/*` routes (`/health`, `/docs` stay public). |
 | `CORS_ORIGINS` | Comma-separated allowed origins; defaults to `*`. |
 | `ARTIFACTS_BUNDLE_URL` / `ARTIFACTS_BASE_URL` | Fetch models/data from an external store instead of the image see [`ARTIFACTS.md`](ARTIFACTS.md). |
-| `MLFLOW_CANCELLATION_MODEL` | Serve the cancellation model from the MLflow registry instead of the local file. |
 | `API_BASE` / `PUBLIC_API_URL` (frontend) | Where the dashboard calls / links to the API. |
 
 ## Validation & CI

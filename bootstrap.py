@@ -40,8 +40,12 @@ print("=" * 62)
 run(f"{sys.executable} -m pip install -r requirements.txt -q",  "Installing dependencies…")
 run(f"{sys.executable} src/generate_data.py",   "Generating hotel datasets (messy + drift)…")
 run(f"{sys.executable} src/train_models_ts.py", "Training Prophet + GBM + MLflow…")
-run(f"{sys.executable} -c 'import sys;sys.path.insert(0,\".\");import pandas as pd;from src.recommender import GuestRecommender;r=GuestRecommender();r.fit(pd.read_csv(\"data/bookings.csv\"));r.save(\"models/recommender.joblib\");print(\"Recommender saved\")'",
-    "Training SVD recommender…")
+# Import form (not `python src/recommender.py`): run as a script, the class
+# pickles as __main__.GuestRecommender and the backend loader must retrain.
+run(f"{sys.executable} -c 'from src.recommender import GuestRecommender; import pandas as pd; "
+    "GuestRecommender().fit(pd.read_csv(\"data/bookings.csv\")).save(\"models/recommender.joblib\"); "
+    "print(\"Recommender saved\")'",
+    "Training rule-based recommender…")
 
 if args.ablation:
     run(f"{sys.executable} src/ablation_study.py", "Running ablation study (p-value tests)…")

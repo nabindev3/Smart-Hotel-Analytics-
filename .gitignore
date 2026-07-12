@@ -19,3 +19,6 @@ mlflow.db
 *.egg-info/
 build/
 dist/
+
+# Council session reports (generated locally, not project source)
+council/

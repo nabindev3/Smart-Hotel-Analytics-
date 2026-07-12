@@ -4,26 +4,20 @@ recommender.py — Hyper-Personalised Guest Recommender
 
 ⚠️  SYNTHETIC / DEMONSTRATION MODEL — NOT REAL COLLABORATIVE FILTERING  ⚠️
 ─────────────────────────────────────────────────────────────────────────────
-There is **no real guest×service interaction data** behind this model. The
-"interactions" are *fabricated* by `_build_interaction_matrix` from a handful of
-hand-written rules plus Gaussian noise, and the SVD is then factorised over that
-fabrication. As a result the model only re-derives the rules it was given — it
-learns nothing empirical, and the recommendations carry no real signal. This is
-a structural placeholder for a genuine recommender.
+There is **no real guest×service interaction data** behind this model. Service
+scores come from the hand-written rules in `_build_interaction_matrix` (plus a
+little Gaussian noise), ranked directly. An earlier version fitted TruncatedSVD
+over a matrix fabricated from these same rules and averaged the top-20
+cosine-similar fabricated rows — which could only re-derive the rules with
+extra steps, so that layer was removed.
 
-To make this real, replace `_build_interaction_matrix` with an actual
-guest×service usage matrix sourced from the PMS (Property Management System) /
-POS — e.g. spa bookings, upgrades purchased, restaurant covers — and refit SVD
-on observed interactions.
+To make this real, source an actual guest×service usage matrix from the PMS
+(Property Management System) / POS — e.g. spa bookings, upgrades purchased,
+restaurant covers — and fit genuine collaborative filtering on observed
+interactions.
 ─────────────────────────────────────────────────────────────────────────────
 
-Collaborative filtering model that predicts the guest's Next Best Action (NBA).
-
-Approach:
-  1. Build a guest×service interaction matrix from bookings
-  2. Apply SVD (Truncated) matrix factorisation to find latent factors
-  3. Predict missing entries (services the guest hasn't used yet)
-  4. Map high-score predictions to personalised offers
+Rule-based scorer that suggests the guest's Next Best Action (NBA).
 
 Guest features used:
   • room type booked   → proxy for spend level
@@ -43,13 +37,10 @@ Services modelled:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import TruncatedSVD
-from sklearn.preprocessing import MinMaxScaler
 
 SERVICES = [
     "spa_treatment", "family_package", "airport_transfer",
@@ -100,18 +91,12 @@ class GuestRecommendation:
 
 class GuestRecommender:
     """
-    SVD-based collaborative filtering recommender.
-    Trained on synthetic booking×service interaction matrix.
+    Rule-based service scorer (see the module banner: the SVD/CF layer was
+    removed because it was fitted on a matrix fabricated from these rules).
     """
 
-    N_COMPONENTS = 8
-
     def __init__(self):
-        self.svd      = TruncatedSVD(n_components=self.N_COMPONENTS, random_state=42)
-        self.scaler   = MinMaxScaler()
-        self.is_fitted= False
-        self._interaction_matrix: Optional[np.ndarray] = None
-        self._guest_features_df:  Optional[pd.DataFrame] = None
+        self.is_fitted = False
 
     def _build_interaction_matrix(self, bookings: pd.DataFrame) -> np.ndarray:
         """
@@ -162,32 +147,9 @@ class GuestRecommender:
         return matrix
 
     def fit(self, bookings: pd.DataFrame):
-        bookings = bookings.copy()
-        bookings["children"] = bookings["children"].fillna(0)
-        bookings["total_stay"] = (bookings.get("stays_in_weekend_nights",
-                                   pd.Series([2]*len(bookings)))
-                                + bookings.get("stays_in_week_nights",
-                                   pd.Series([2]*len(bookings))))
-        bookings["total_guests"] = (bookings.get("adults", pd.Series([2]*len(bookings)))
-                                  + bookings["children"]
-                                  + bookings.get("babies", pd.Series([0]*len(bookings))))
-
-        # Subsample for efficiency (max 10k)
-        if len(bookings) > 10_000:
-            bookings = bookings.sample(10_000, random_state=42).reset_index(drop=True)
-
-        self._guest_features_df = bookings
-        matrix = self._build_interaction_matrix(bookings)
-        self._interaction_matrix = matrix
-
-        # Fit SVD
-        self.svd.fit(matrix)
+        # The rules need no fitting; kept so the train → save → load flow
+        # (bootstrap, backend fallback retrain) stays unchanged.
         self.is_fitted = True
-
-        # Explained variance
-        ev = self.svd.explained_variance_ratio_.sum()
-        print(f"  SVD fitted | {self.N_COMPONENTS} components | "
-              f"explained variance: {ev:.1%}")
         return self
 
     def predict_guest(self, guest: dict, top_n: int = 3) -> GuestRecommendation:
@@ -198,35 +160,10 @@ class GuestRecommender:
         if not self.is_fitted:
             raise RuntimeError("Call fit() first.")
 
-        # Build single-row interaction vector from guest features
+        # Score services for this guest straight from the rules.
         dummy = pd.DataFrame([guest])
         dummy["children"] = dummy.get("children", 0)
-
-        # Find most similar guests in training set using cosine similarity
-        g_vec = self._build_interaction_matrix(dummy)[0]
-
-        # Project into SVD latent space
-        g_latent  = self.svd.transform(g_vec.reshape(1, -1))
-        all_latent = self.svd.transform(self._interaction_matrix)
-
-        # Cosine similarity
-        from numpy.linalg import norm
-        norms = norm(all_latent, axis=1, keepdims=True) + 1e-9
-        sims  = (all_latent / norms) @ (g_latent.T / (norm(g_latent) + 1e-9))
-        sims  = sims.flatten()
-
-        # Weighted average of top-K similar guest vectors
-        top_k_idx   = np.argsort(sims)[-20:]
-        weights     = sims[top_k_idx]
-        weights     = np.maximum(weights, 0)
-        if weights.sum() > 0:
-            weights /= weights.sum()
-        else:
-            weights = np.ones(len(top_k_idx)) / len(top_k_idx)
-
-        predicted   = (self._interaction_matrix[top_k_idx] * weights[:, None]).sum(axis=0)
-        # Zero out services guest "already has" (high in their own profile)
-        predicted   = predicted * (1 - g_vec * 0.5)
+        predicted = self._build_interaction_matrix(dummy)[0]
 
         # Rank
         ranked = sorted(zip(SERVICES, predicted), key=lambda x: -x[1])

@@ -142,7 +142,7 @@ def analyse(text: str, use_cache: bool = True) -> dict:
     hf = _get_hf()
     if hf:
         try:
-            r = hf.analyse(text, use_cache=False)
+            r = hf.analyse(text)
             if not r.get("_hf_failed"): result = r
         except Exception as e: logger.warning(f"HF failed: {e}")
     # Tier 2: Claude

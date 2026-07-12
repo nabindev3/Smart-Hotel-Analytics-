@@ -19,20 +19,9 @@ import numpy as np
 import pandas as pd
 import shap
 
-# Must match the training schema in src/train_models_ts.py exactly. The two
-# leakage columns (booking_changes, days_in_waiting_list) were dropped there,
-# so they must NOT appear here — otherwise NUM has more entries than the fitted
-# preprocessor produces and SHAP feature names get shifted/mislabeled.
-FEATURES = [
-    "hotel","lead_time","arrival_date_month","total_stay","total_guests",
-    "meal","country","market_segment","distribution_channel",
-    "is_repeated_guest","previous_cancellations","previous_bookings_not_canceled",
-    "reserved_room_type","deposit_type","customer_type",
-    "required_car_parking_spaces","total_of_special_requests","adr",
-]
-CAT = ["hotel","arrival_date_month","meal","country","market_segment",
-       "distribution_channel","reserved_room_type","deposit_type","customer_type"]
-NUM = [f for f in FEATURES if f not in CAT]
+# The feature schema (raw columns, feature names) is read off the fitted
+# pipeline itself — no hand-maintained copy of src/train_models_ts.py's
+# FEATURES/CAT/NUM lists to drift out of sync.
 
 
 class CancellationExplainer:
@@ -51,15 +40,19 @@ class CancellationExplainer:
         self._explainer:   Optional[shap.Explainer] = None
         self._feature_names: list[str] = []
 
+    @property
+    def features(self) -> list[str]:
+        """Raw input columns the pipeline was fitted on."""
+        return list(self.preprocessor.feature_names_in_)
+
     def _get_feature_names(self) -> list[str]:
         if self._feature_names:
             return self._feature_names
         try:
-            num_names = NUM.copy()
-            cat_names = (self.preprocessor
-                         .named_transformers_["cat"]
-                         .get_feature_names_out(CAT).tolist())
-            self._feature_names = num_names + cat_names
+            # "num__lead_time" / "cat__hotel_City Hotel" → strip the transformer
+            # prefix for readable output.
+            self._feature_names = [n.split("__", 1)[-1]
+                                   for n in self.preprocessor.get_feature_names_out()]
         except Exception:
             n = self.clf.n_features_in_
             self._feature_names = [f"feature_{i}" for i in range(n)]
@@ -135,9 +128,6 @@ class CancellationExplainer:
         waterfall  = []
         for i in top_idx:
             name = names[i] if i < len(names) else f"f{i}"
-            # Shorten OHE feature names
-            if "__" in name:
-                name = name.split("__", 1)[1]
             waterfall.append({
                 "feature":    name,
                 "shap_value": round(float(vals[i]), 5),
@@ -161,7 +151,7 @@ if __name__ == "__main__":
     exp = CancellationExplainer("models/cancellation_model.joblib")
 
     print("Computing global SHAP values (500 samples)…")
-    g = exp.explain_global(bk[FEATURES])
+    g = exp.explain_global(bk[exp.features])
     print("Top 5 features:")
     for name, val in zip(g["feature_names"][:5], g["mean_abs_shap"][:5]):
         print(f"  {name:<40} {val:.5f}")
@@ -176,7 +166,7 @@ if __name__ == "__main__":
     print(f"Saved {out} (n_samples={g['n_samples']}).")
 
     print("\nInstance explanation (booking #1):")
-    row = bk[FEATURES].head(1)
+    row = bk[exp.features].head(1)
     inst = exp.explain_instance(row)
     print(f"  Predicted cancel prob: {inst['prediction_prob']:.3f}")
     print(f"  Base value:            {inst['base_value']:.3f}")

@@ -1,0 +1,147 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>LLM Council — Hotel Revenue ML Platform</title>
+<style>
+  :root{--ink:#1c2024;--mut:#6b7280;--line:#e5e7eb;--bg:#fafafa;--card:#fff;
+        --gold:#a9802f;--green:#15803d;--amber:#b45309;--red:#b91c1c;--blue:#1d4ed8;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:820px;margin:0 auto;padding:40px 22px 80px}
+  h1{font-size:24px;margin:0 0 4px} .sub{color:var(--mut);margin:0 0 26px;font-size:13px}
+  .q{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);
+     border-radius:8px;padding:14px 16px;margin:0 0 26px;font-size:14px}
+  .verdict{background:var(--card);border:1px solid var(--line);border-radius:12px;
+           padding:22px 24px;margin:0 0 26px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .verdict h2{margin:0 0 2px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+  .score{font-size:46px;font-weight:700;color:var(--gold);line-height:1.1;margin:.1em 0}
+  .score small{font-size:16px;color:var(--mut);font-weight:500}
+  h3{font-size:15px;margin:22px 0 8px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  .spectrum{display:flex;gap:8px;margin:6px 0 4px;flex-wrap:wrap}
+  .chip{flex:1;min-width:120px;background:var(--card);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;text-align:center}
+  .chip b{display:block;font-size:22px} .chip span{font-size:11px;color:var(--mut)}
+  .c6{color:var(--amber)} .c7{color:var(--blue)} .c8{color:var(--green)}
+  ul{margin:6px 0 0;padding-left:20px} li{margin:4px 0}
+  .clash{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+  .clash div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .clash h4{margin:0 0 6px;font-size:13px}
+  .rec{background:#fffaf0;border:1px solid #f0d9a8;border-radius:10px;padding:16px 18px;margin-top:10px}
+  .first{font-weight:600}
+  details{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:8px 0;padding:0 14px}
+  summary{cursor:pointer;padding:12px 0;font-weight:600;font-size:14px;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary .r{float:right;color:var(--mut);font-weight:500}
+  details p{margin:0 0 12px;font-size:14px;color:#333}
+  .ok{color:var(--green)} .warn{color:var(--amber)}
+  footer{color:var(--mut);font-size:12px;margin-top:34px;border-top:1px solid var(--line);padding-top:12px}
+  code{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12.5px}
+</style>
+<div class="wrap">
+  <h1>LLM Council — Hotel Revenue ML Platform</h1>
+  <p class="sub">5 advisors · peer-cross-analyzed · chaired synthesis &nbsp;•&nbsp; 2026-06-14</p>
+
+  <div class="q"><b>Question:</b> Analyze the whole project, rate it out of 10, and check for bugs.
+  Context: a portfolio/reference repo for a job search, trained entirely on synthetic data.</div>
+
+  <div class="verdict">
+    <h2>Council Verdict</h2>
+    <div class="score">7.5<small> / 10 &nbsp;as a hiring artifact</small></div>
+    <p style="margin:.2em 0 0;color:var(--mut);font-size:13.5px">
+      ≈3/10 if judged as a literal ML product — but that's not what it is. The engineering
+      discipline and honesty carry it; the synthetic data caps it.</p>
+  </div>
+
+  <h3>Advisor ratings</h3>
+  <div class="spectrum">
+    <div class="chip"><b class="c6">6</b><span>Contrarian</span></div>
+    <div class="chip"><b class="c7">7</b><span>First Principles</span></div>
+    <div class="chip"><b class="c8">8</b><span>Expansionist</span></div>
+    <div class="chip"><b class="c6">5–7</b><span>Outsider</span></div>
+    <div class="chip"><b class="c7">7</b><span>Executor</span></div>
+  </div>
+
+  <h3>Where the council agrees</h3>
+  <ul>
+    <li><b>The synthetic data is a closed loop.</b> Every headline metric (0.81 AUC, 15% MAPE) measures
+      fit to a world the author generated — to a sharp interviewer they're unfalsifiable. 3 of 5 advisors hit this independently.</li>
+    <li><b>The real value isn't the ML — it's the judgment.</b> Removing leakage and defending the lower AUC,
+      killing the over-engineered LP, the ADR log + bug retrospective. That's senior-signal and rare in a portfolio.</li>
+    <li><b>Rate it as a hiring artifact, not a product.</b> On that axis it's strong; as a revenue system it's a toy.</li>
+  </ul>
+
+  <h3>Where the council clashes</h3>
+  <div class="clash">
+    <div><h4>Substance camp (Contrarian, Outsider)</h4>
+      Rebuild at least the cancellation model on the <b>real public Antonio hotel-bookings dataset</b>.
+      That converts "fit-to-simulation" into a defensible result and is the only thing that survives a technical interview.</div>
+    <div><h4>Presentation camp (Executor, Expansionist)</h4>
+      <b>Don't touch the ML.</b> The repo is judged in 30 seconds — fix the cold-start/demo and reposition the README
+      to lead with the decisions log. Real-data swap is high-effort and not what's blocking interviews today.</div>
+  </div>
+
+  <h3>Blind spot the council caught</h3>
+  <ul>
+    <li><b>"Removing AI tells" is self-defeating.</b> Two advisors flagged that actively concealing how the project was built
+      undermines its one differentiator — demonstrated honesty. If an interviewer senses sanitized provenance, every honest
+      disclosure (honest AUC, the retrospective) reads as selective. Defend your judgment; don't hide the workflow.</li>
+  </ul>
+
+  <h3>Recommendation</h3>
+  <div class="rec">
+    Do the <b>presentation fixes now</b> (this week) and the <b>one substantive upgrade</b> next.
+    Short-term ROI is in the demo: a recruiter never reaches your 48 tests if the link hangs for 50 seconds.
+    But the Contrarian is right that the real-data swap is the difference between a 7 and an 8+ — it's the one
+    change that survives interview scrutiny. Stop polishing prose to hide AI assistance; that effort is negative-value.
+  </div>
+
+  <h3>The one thing to do first</h3>
+  <div class="rec first">
+    Kill the cold-start first impression: record a 30-second Loom of you driving the dashboard and narrating one ML
+    decision (e.g. "why I removed leakage"), and put it at the very top of the README — plus a keep-warm cron ping.
+    That decouples "did they see it work" from "is the free-tier server awake."
+  </div>
+
+  <h3>Bug check <span style="font-size:12px;color:var(--mut)">(chairman — verified against <code>main</code>)</span></h3>
+  <ul>
+    <li><span class="ok">✓ No live functional bug found.</span> <code>pytest</code> → 48 passed / 3 skipped; <code>ruff</code> clean; app imports (24 routes).</li>
+    <li><span class="ok">✓ The previously-broken XAI/SHAP path is fixed</span> (model-agnostic explainer over the calibrated model) and now has a passing test.</li>
+    <li><span class="warn">⚠ Operational, not code:</span> Render free-tier cold start (50s+), and the recent build failure (scipy/Python version) — addressed via a Python pin + Docker blueprint, but the service still needs to be switched to the Docker runtime to be reliable.</li>
+    <li><span class="warn">⚠ Cosmetic:</span> the em-dash/hyphen stripping in the README/docs introduced a few broken compound words ("decision support", "rule based", "head to head"). Minor, but it's in the headline doc.</li>
+  </ul>
+
+  <h3>Full advisor responses</h3>
+  <details><summary>The Contrarian <span class="r">6/10</span></summary>
+    <p>Every metric measures how well a model fits a world the author invented — a closed loop. 0.81 AUC means
+    "XGBoost can reverse-engineer my synthetic regressors." The recommender (SVD over a rule-based matrix) makes the
+    circularity nakedly visible. "Honest labeling" is good ethics but bad portfolio strategy. Fix: use the real public
+    Antonio hotel-bookings dataset for at least the cancellation model → an 8. Secondary risk: "removing AI tells" makes
+    honest disclosures read as selective. <b>Biggest risk: the results section is unfalsifiable; a sharp interviewer notices in 90 seconds.</b></p></details>
+  <details><summary>The First Principles Thinker <span class="r">7/10</span></summary>
+    <p>Wrong thing to rate. As an ML product it's a 2 (closed loop). But it's a <b>hiring artifact</b>; the deliverable is
+    <i>evidence of judgment</i> — removing leakage for an honest 0.81, deleting the LP, the ADR log, the retrospective.
+    Synthetic data is honest scoping, not the weakness. The weakness is the <b>instinct to hide how it was made</b>: the
+    value prop is demonstrated honesty, so concealing AI-assisted provenance collapses the differentiator. Document the
+    AI-assisted workflow as a deliberate choice and the same project gets stronger.</p></details>
+  <details><summary>The Expansionist <span class="r">8/10 (9 repositioned)</span></summary>
+    <p>The most undervalued asset is the <b>retrospective + ADR log</b>, not the ML. Mid-level engineers are a commodity;
+    what's hard to show is judgment under ambiguity — and this shows it (caught leakage in your own headline metric and
+    defended the lower number; killed your own darling LP). Reposition: the README's first 200 words should lead with
+    "I keep a decisions log and a bug retrospective — here are 3 real mistakes I caught." Every bug is a pre-rehearsed
+    STAR story and a potential blog post / lightning talk.</p></details>
+  <details><summary>The Outsider <span class="r">7 → 5/10</span></summary>
+    <p>90 seconds cold: slick demo, real API docs, clean repo, lots of writing → "this person ships." Then the disclaimer.
+    Stating it is ethical (hiding would be worse), but the implication hurts: synthetic-script data means the model learns
+    rules the script wrote — the headline numbers are tautologies. And the <b>scope</b> (six products) on fake data reads
+    like avoiding the hard part (wrangling real data). Fix: drop synthetic numbers from the headline; lead with the
+    engineering and decisions log; rebuild one feature on a real public dataset and make it the star.</p></details>
+  <details><summary>The Executor <span class="r">7/10</span></summary>
+    <p>A <b>sleeping demo</b> judged in 30 seconds. Monday: kill the cold-start. A recruiter waits 50s on a blank free-tier
+    screen and closes the tab before the 48 tests matter. Pick one: a GitHub Actions cron pinging the URL every 10 min,
+    or a 30-second Loom of you driving the dashboard at the top of the README (decouples "did they see it work" from
+    "is the server awake"). <b>Do NOT</b> touch the ML / swap data / add models — "polishing a car with a dead battery."
+    Cheap extra: a dashboard GIF above the fold.</p></details>
+
+  <footer>Council on "rate this project + find bugs" · 5 advisors (Contrarian · First Principles · Expansionist · Outsider · Executor)
+  · chaired synthesis with a verified bug check · methodology by Andrej Karpathy.</footer>
+</div>
